@@ -1,1 +1,1 @@
-export { EntryPoint, Cache, Node } from './tr';
+export { EntryPoint, Node } from './tr';

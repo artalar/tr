@@ -1,114 +1,80 @@
-function emptyCall() {}
-
-function validateFunction(callback, name) {
-  if (typeof callback !== "function") {
-    throw new TypeError(`${name} must be function`);
+function validateFunctionType(func, name) {
+  if (typeof func !== 'function') {
+    throw new TypeError(`@@tr: ${name} must be function`);
   }
 }
 
-export class EntryPoint {
-  _next = emptyCall;
-
-  add(callback) {
-    validateFunction(callback, "callback");
-    const parentStep = this._next;
-    this._next = function() {
-      parentStep();
-      callback();
-    };
-  }
-
-  call(argument) {
-    this._payload = argument;
-    try {
-      this._next();
-    } finally {
-      this._payload = undefined;
-    }
-  }
-
-  getData() {
-    return this._payload;
+function validateDependencies(dependencies) {
+  if (
+    !Array.isArray(dependencies) ||
+    dependencies.length === 0 ||
+    dependencies.some(d => !d instanceof TR)
+  ) {
+    throw new TypeError('@@tr: invalid dependencies');
   }
 }
 
-export class Cache {
-  constructor(dependencies) {
-    if (!Array.isArray(dependencies) || dependencies.length < 2) {
-      throw new TypeError("Invalid dependencies");
-    }
+function combine(next, call) {
+  return a => next(call(a));
+}
 
-    this._dependencies = dependencies;
-    this._cache = new Array(dependencies.length);
+class TR {}
+
+let entryPointCounter = 0;
+export class EntryPoint extends TR {
+  constructor() {
+    super();
+    const type = `@@tr/EntryPoint/${++entryPointCounter}`;
+    this.type = type;
+    this._dependencies = new Set([this]);
+    this._next = a => a;
+  }
+
+  callWithSnapshot(a, snaphot = {}) {
+    this._next(Object.assign({}, snaphot, { [this.type]: a }));
+  }
+
+  call(a) {
+    this.callWithSnapshot(a);
+  }
+
+  add(next) {
+    validateFunctionType(next, 'next');
+    this._next = combine(next, this._next);
+  }
+}
+
+let nodeCounter = 0;
+export class Node extends TR {
+  constructor(dependencies, mapper) {
+    super();
+    validateDependencies(dependencies);
+    validateFunctionType(mapper, 'mapper');
+
+    const type = `@@tr/Node/${++nodeCounter}`;
+    const cacheType = type + '/cache';
+    this.type = type;
+    this._dependencies = dependencies.reduce(
+      (acc, d) => (d._dependencies.forEach(v => acc.add(v)), acc),
+      new Set(),
+    );
 
     for (let i = 0; i < dependencies.length; i++) {
-      const entryPoint = dependencies[i];
-      entryPoint.add(() => {
-        this._cache[i] = entryPoint.getData();
+      const dependency = dependencies[i];
+      dependency.add(ctx => {
+        const cache = ctx[cacheType] || new Array(dependencies.length);
+        cache[i] = ctx[dependency.type];
+        ctx[cacheType] = cache;
+        return ctx;
       });
     }
+    this.add(ctx => {
+      ctx[type] = mapper(...ctx[cacheType]);
+      return ctx;
+    });
   }
 
-  add(callback) {
-    const entryPoints = this._dependencies;
-
-    for (let i = 0; i < entryPoints.length; i++) {
-      entryPoints[i].add(callback);
-    }
-  }
-
-  getData() {
-    return this._cache;
+  add(next) {
+    this._dependencies.forEach(d => d.add(next));
   }
 }
-
-export class Node {
-  constructor(dependencies, mapper) {
-    if (!Array.isArray(dependencies) || dependencies.length === 0) {
-      throw new TypeError("Invalid dependencies");
-    }
-
-    validateFunction(mapper, "mapper");
-
-    this._subscribers = new Set();
-
-    if (dependencies.length === 1) {
-      this._dependency = dependencies[0];
-    } else {
-      this._dependency = new Cache(dependencies);
-      const _mapper = mapper;
-      mapper = args => _mapper.apply(null, args);
-    }
-
-    this._dependency.add(() =>
-      this._notify(mapper(this._dependency.getData()))
-    );
-  }
-
-  _notify(newValue) {
-    this._value = newValue;
-    try {
-      this.subscribers.forEach(cb => cb(newValue));
-    } finally {
-      this._value = undefined;
-    }
-  }
-
-  add(callback) {
-    this._dependency.add(callback);
-  }
-
-  getData() {
-    return this._value;
-  }
-
-  subscribe(cb) {
-    validateFunction(cb, "callback");
-    const subscribers = this._subscribers;
-    subscribers.add(cb);
-    return function unsubscribe() {
-      subscribers.delete(cb);
-    };
-  }
-}
-
