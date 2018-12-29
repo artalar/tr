@@ -6,25 +6,6 @@ import {
   getValueFromSnapshot,
 } from '..';
 
-// class Store {
-//   constructor(dependency) {
-//     this._subscriptions = new Set();
-//     dependency.add(state => this._notyfy(state));
-//   }
-
-//   _notyfy(state) {
-//     this._subscriptions.forEach(cb => cb(state));
-//   }
-
-//   subscribe(callback) {
-//     validateFunction(callback, 'callback');
-
-//     this._subscriptions.add(callback);
-
-//     return () => this._subscriptions.delete(callback);
-//   }
-// }
-
 describe('tr', () => {
   describe('rhombus', () => {
     let name$;
