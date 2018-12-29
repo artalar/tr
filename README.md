@@ -19,7 +19,8 @@ function getDisplayName(firstName, fullName) {
 // ------------------------------------------------
 
 // ### push-based
-// problem - high coupling
+// - **benefits** - high performance
+// - **problems** - high coupling
 
 function fetchResponse(data) {
   const firstName = getFirstName(data);
@@ -33,7 +34,10 @@ function fetchResponse(data) {
 // ------------------------------------------------
 
 // ### pull-based
-// execution order:
+// - **benefits** - low coupling
+// - **problems** - a little bit less performance from API overhead.
+//     Recall of rhombus dependencies (glitches).
+// > execution order:
 // > fetchResponse ->
 // >     firstName ->
 // >         fullName ->
@@ -41,31 +45,31 @@ function fetchResponse(data) {
 // >     lastName ->
 // >         fullName ->
 // >             displayName ->
-//
-// problem - recall of dependencies (glitches)
 
-const fetchResponse$ = createObservable();
-const firstName$ = createObservable([fetchResponse$], getFirstName);
-const lastName$ = createObservable([fetchResponse$], getLastName);
-const fullName$ = createObservable([firstName$, lastName$], getFullName);
-const displayName$ = createObservable([firstName$, fullName$], getDisplayName);
+const fetchResponse$ = new Observer();
+const firstName$ = Observer.from(fetchResponse$).map(getFirstName);
+const lastName$ = Observer.from(fetchResponse$).map(getLastName);
+const fullName$ = Observer.from(firstName$, lastName$).map(getFullName);
+const displayName$ = Observer.from(firstName$, fullName$).map(getDisplayName);
 
 // ------------------------------------------------
 
-// ### pull-based with **`tr`**
+// ## **`tr`**
+// ### push-based with pull-based API
+// - **benefits** - low coupling, almost native (push-based) performance (initial time dependency composition)
+// - **problems** - dependencies tree locked for removing nodes
 // execution order:
 // > fetchResponse ->
 // >     firstName ->
 // >     lastName ->
 // >         fullName ->
 // >             displayName ->
-//
-// problems solved
 
-const fetchResponse = createStarter();
-const firstName = fold([fetchResponse], getFirstName);
-const lastName = fold([fetchResponse], getLastName);
-const fullName = fold([firstName, lastName], getFullName);
-const displayName = fold([firstName, fullName], getDisplayName);
-
+const fetchResponse$ = createCaller();
+const firstName$ = combine([fetchResponse$], getFirstName);
+const lastName$ = combine([fetchResponse$], getLastName);
+const fullName$ = combine([firstName$, lastName$], getFullName);
+const displayName$ = combine([firstName$, fullName$], getDisplayName);
 ```
+
+> **For more examples see [tests](src/__tests__/index.js)**

@@ -1,4 +1,10 @@
-import { EntryPoint, Node } from '..';
+import {
+  createCaller,
+  combine,
+  createHandler,
+  handleSnapshot,
+  getValueFromSnapshot,
+} from '..';
 
 // class Store {
 //   constructor(dependency) {
@@ -32,126 +38,219 @@ describe('tr', () => {
     let displayName;
 
     it('create', () => {
-      name$ = new EntryPoint();
+      name$ = createCaller();
 
-      firstNameTrack = jest.fn(name => name.split(' ')[0]);
-      firstName$ = new Node([name$], firstNameTrack);
+      firstNameTrack = jest.fn((_, name) => name.split(' ')[0]);
+      firstName$ = combine([name$], firstNameTrack);
 
-      lastName$ = new Node([name$], name => name.split(' ')[1]);
+      lastName$ = combine([name$], (_, name) => name.split(' ')[1]);
 
-      fullNameTrack = jest.fn((fn, ln) => [fn, ln].join(' '));
-      fullName$ = new Node([firstName$, lastName$], fullNameTrack);
+      fullNameTrack = jest.fn((_, fn, ln) => [fn, ln].join(' '));
+      fullName$ = combine([firstName$, lastName$], fullNameTrack);
 
-      displayNameTrack = jest.fn((firstN, fullN) =>
+      displayNameTrack = jest.fn((_, firstN, fullN) =>
         firstN.length < 10 ? fullN : firstN,
       );
-      displayName$ = new Node([firstName$, fullName$], displayNameTrack);
+      displayName$ = combine([firstName$, fullName$], displayNameTrack);
 
-      displayName$.add(ctx => {
-        displayName = ctx[displayName$.type];
-        return ctx;
-      });
+      combine([displayName$], (_, v) => (displayName = v));
     });
 
     it('update', () => {
-      name$.call('John Doe');
+      name$('John Doe');
       expect(displayName).toBe('John Doe');
       expect(fullNameTrack.mock.calls.length).toBe(1);
       expect(displayNameTrack.mock.calls.length).toBe(1);
 
-      name$.call('John Doe');
-      expect(displayName).toBe('John Doe');
+      name$('Jooooooooooooohn Doe');
+      expect(displayName).toBe('Jooooooooooooohn');
       expect(firstNameTrack.mock.calls.length).toBe(2);
       expect(fullNameTrack.mock.calls.length).toBe(2);
       expect(displayNameTrack.mock.calls.length).toBe(2);
     });
   });
 
-  describe('pickFirst', () => {
-    it('', async () => {
-      const pickFirst = (...nodes) =>
-        new Node(nodes, (...results) => results.find(Boolean));
-
-      const fetch$ = {
-        req: new EntryPoint(),
-        res: new EntryPoint(),
-        err: new EntryPoint(),
-      };
-
-      const loading$ = pickFirst(
-        new Node([fetch$.req], () => true),
-        new Node([fetch$.res], () => false),
-        new Node([fetch$.err], () => false),
-      );
-
-      const userData$ = new Node([fetch$.res], (data = {}) => data);
-
-      const user$ = new Node([loading$, userData$], (loading, user) => ({
-        loading,
-        user,
-      }));
-
+  describe('createHandler', () => {
+    describe('union', async () => {
       async function fetch(fetcher) {
-        fetch$.req.call();
+        fetchReq$(null, lastShapshot);
         try {
-          fetch$.res.call(await fetcher);
+          fetchRes$(await fetcher, lastShapshot);
         } catch (e) {
-          fetch$.err.call();
+          fetchErr$(e, lastShapshot);
         }
       }
-      const track = jest.fn();
 
-      user$.add(ctx => track(ctx[user$.type]));
+      const initial$ = createCaller();
 
-      await fetch(new Promise(r => setTimeout(r, 50, { prop: true })));
+      const fetchReq$ = createCaller();
+      const fetchRes$ = createCaller();
+      const fetchErr$ = createCaller();
 
-      console.log(track.mock.calls);
+      const user$ = createHandler()
+        .on([initial$], () => ({
+          data: {},
+          error: null,
+          loading: true,
+        }))
+        .on([fetchReq$], state => ({
+          ...state,
+          error: null,
+          loading: true,
+        }))
+        .on([fetchRes$], (state, data) => ({
+          ...state,
+          data,
+          error: null,
+          loading: false,
+        }))
+        .on([fetchErr$], (state, error) => ({
+          ...state,
+          error,
+          data: {},
+          loading: false,
+        }))
+        .done();
+
+      const root$Track = jest.fn((_, user) => ({ user }));
+      const root$ = combine([user$], root$Track);
+
+      let lastShapshot;
+      handleSnapshot(root$, ctx => (lastShapshot = ctx));
+
+      it('initial', () => {
+        initial$();
+        expect(root$Track.mock.calls.length).toBe(1);
+        expect(root$Track.mock.calls[0]).toEqual([
+          undefined,
+          { data: {}, error: null, loading: true },
+        ]);
+        expect(root$Track.mock.calls[0][1]).toEqual(
+          getValueFromSnapshot(lastShapshot, root$).user,
+        );
+      });
+
+      it('request success', async () => {
+        const request = fetch(
+          new Promise(r => setTimeout(r, 50, { prop: true })),
+        );
+        expect(root$Track.mock.calls.length).toBe(2);
+        expect(root$Track.mock.calls[1]).toEqual([
+          { user: { data: {}, error: null, loading: true } },
+          { data: {}, error: null, loading: true },
+        ]);
+
+        await request;
+        expect(root$Track.mock.calls.length).toBe(3);
+        expect(root$Track.mock.calls[2][1]).toEqual({
+          data: { prop: true },
+          error: null,
+          loading: false,
+        });
+      });
+
+      it('request error', async () => {
+        await fetch(new Promise((_, r) => setTimeout(r, 50, 'test error')));
+        expect(root$Track.mock.calls.length).toBe(5);
+        expect(root$Track.mock.calls[4][1]).toEqual({
+          data: {},
+          error: 'test error',
+          loading: false,
+        });
+      });
+    });
+
+    describe('separated', async () => {
+      async function fetch(fetcher) {
+        fetchReq$(null, lastShapshot);
+        try {
+          fetchRes$(await fetcher, lastShapshot);
+        } catch (e) {
+          fetchErr$(e, lastShapshot);
+        }
+      }
+
+      const initial$ = createCaller();
+
+      const fetchReq$ = createCaller();
+      const fetchRes$ = createCaller();
+      const fetchErr$ = createCaller();
+
+      const loading$ = createHandler()
+        .on([initial$], () => true)
+        .on([fetchReq$], () => true)
+        .on([fetchRes$], () => false)
+        .on([fetchErr$], () => false)
+        .done();
+
+      const error$ = createHandler()
+        .on([initial$], () => null)
+        .on([fetchReq$], () => null)
+        .on([fetchRes$], () => null)
+        .on([fetchErr$], (_, e) => e)
+        .done();
+
+      const userData$ = createHandler()
+        .on([initial$], () => ({}))
+        .on([fetchRes$], Object.assign)
+        .on([fetchErr$], () => ({}))
+        .done();
+
+      const user$ = combine(
+        [loading$, userData$, error$],
+        (_, loading, data, error) => ({
+          loading,
+          data,
+          error,
+        }),
+      );
+
+      const root$Track = jest.fn((_, user) => ({ user }));
+      const root$ = combine([user$], root$Track);
+
+      let lastShapshot;
+      handleSnapshot(root$, ctx => (lastShapshot = ctx));
+
+      it('initial', () => {
+        initial$();
+        expect(root$Track.mock.calls.length).toBe(1);
+        expect(root$Track.mock.calls[0]).toEqual([
+          undefined,
+          { data: {}, error: null, loading: true },
+        ]);
+        expect(root$Track.mock.calls[0][1]).toEqual(
+          getValueFromSnapshot(lastShapshot, root$).user,
+        );
+      });
+
+      it('request success', async () => {
+        const request = fetch(
+          new Promise(r => setTimeout(r, 50, { prop: true })),
+        );
+        expect(root$Track.mock.calls.length).toBe(2);
+        expect(root$Track.mock.calls[1]).toEqual([
+          { user: { data: {}, error: null, loading: true } },
+          { data: {}, error: null, loading: true },
+        ]);
+
+        await request;
+        expect(root$Track.mock.calls.length).toBe(3);
+        expect(root$Track.mock.calls[2][1]).toEqual({
+          data: { prop: true },
+          error: null,
+          loading: false,
+        });
+      });
+
+      it('request error', async () => {
+        await fetch(new Promise((_, r) => setTimeout(r, 50, 'test error')));
+        expect(root$Track.mock.calls.length).toBe(5);
+        expect(root$Track.mock.calls[4][1]).toEqual({
+          data: {},
+          error: 'test error',
+          loading: false,
+        });
+      });
     });
   });
-
-  // it('async', async () => {
-  //   const { multiAtom } = new (withAtoms(PubSub))();
-  //   const cb = jest.fn();
-
-  //   const Status = multiAtom({
-  //     status: 'idle',
-  //   });
-
-  //   const Data = Status.map(payload =>
-  //     payload.status === 'res' ? payload.data : [],
-  //   );
-
-  //   const ErrorStatus = Status.map(payload =>
-  //     payload.status === 'err' ? payload.error : null,
-  //   );
-
-  //   const Feature = multiAtom(Status, Data, ErrorStatus, (...v) => v);
-
-  //   Feature.subscribe(data => {
-  //     expect(data).toBe(Feature());
-  //     cb(data);
-  //   });
-
-  //   async function updateUser(fetcher) {
-  //     Status({ status: 'req' });
-  //     try {
-  //       Status({ status: 'res', data: await fetcher() });
-  //     } catch (error) {
-  //       Status({ status: 'err', error });
-  //     }
-  //   }
-
-  //   await updateUser(() => new Promise(r => setTimeout(r, 50, [1, 2, 3])));
-
-  //   expect(Data()).toEqual([1, 2, 3]);
-  //   expect(Status().status).toEqual('res');
-  //   expect(ErrorStatus()).toBe(null);
-  //   expect(cb.mock.calls.length).toBe(2);
-  //   expect(cb.mock.calls[0][0]).toEqual([{ status: 'req' }, [], null]);
-  //   expect(cb.mock.calls[1][0]).toEqual([
-  //     { status: 'res', data: [1, 2, 3] },
-  //     [1, 2, 3],
-  //     null,
-  //   ]);
-  // });
 });

@@ -1,6 +1,19 @@
+let counter = 0;
+const createConstant =
+  typeof Symbol === 'function'
+    ? Symbol
+    : description =>
+        TR_PREFIX + description + '__' + counter++ + '/' + Math.random();
+
+const TR_PREFIX = '@@tr/';
+const IS_TR = createConstant('IS_TR');
+const TYPE = createConstant('TYPE');
+const CALLER = createConstant('CALLER');
+const ADD = createConstant('ADD');
+
 function validateFunctionType(func, name) {
   if (typeof func !== 'function') {
-    throw new TypeError(`@@tr: ${name} must be function`);
+    throw new TypeError(`${TR_PREFIX}: ${name} must be function`);
   }
 }
 
@@ -8,73 +21,151 @@ function validateDependencies(dependencies) {
   if (
     !Array.isArray(dependencies) ||
     dependencies.length === 0 ||
-    dependencies.some(d => !d instanceof TR)
+    dependencies.some(d => !d[IS_TR])
   ) {
-    throw new TypeError('@@tr: invalid dependencies');
+    // TODO: improve error description
+    throw new TypeError(TR_PREFIX + ': invalid dependencies');
   }
 }
 
-function combine(next, call) {
-  return a => next(call(a));
+function collectStarters(dependencies) {
+  return dependencies.reduce(
+    (acc, d) => (d[CALLER].forEach(dd => acc.add(dd)), acc),
+    new Set(),
+  );
 }
 
-class TR {}
+let compose = (a, b) => {
+  return _ => a(b(_));
+};
 
-let entryPointCounter = 0;
-export class EntryPoint extends TR {
-  constructor() {
-    super();
-    const type = `@@tr/EntryPoint/${++entryPointCounter}`;
-    this.type = type;
-    this._dependencies = new Set([this]);
-    this._next = a => a;
-  }
-
-  callWithSnapshot(a, snaphot = {}) {
-    this._next(Object.assign({}, snaphot, { [this.type]: a }));
-  }
-
-  call(a) {
-    this.callWithSnapshot(a);
-  }
-
-  add(next) {
-    validateFunctionType(next, 'next');
-    this._next = combine(next, this._next);
-  }
+// usefull for debug
+// or prevent maximum call stack on large dependencies tree
+// (can be replaced by cycle)
+export function __replaceCompose(newCompose) {
+  compose = newCompose;
 }
 
-let nodeCounter = 0;
-export class Node extends TR {
-  constructor(dependencies, mapper) {
-    super();
-    validateDependencies(dependencies);
-    validateFunctionType(mapper, 'mapper');
+export function handleSnapshot(node, callback) {
+  node[ADD](ctx => (callback(ctx), ctx));
+}
 
-    const type = `@@tr/Node/${++nodeCounter}`;
-    const cacheType = type + '/cache';
-    this.type = type;
-    this._dependencies = dependencies.reduce(
-      (acc, d) => (d._dependencies.forEach(v => acc.add(v)), acc),
-      new Set(),
+export function getValueFromSnapshot(snapshot, node) {
+  return snapshot[node[TYPE]];
+}
+
+// PROPOSAL:
+// collect dependencies, compose by manual request
+export function createCaller() {
+  function starter(a, snaphot = {}) {
+    return next(Object.assign({}, snaphot, { [type]: a }));
+  }
+
+  const type = createConstant('createCaller');
+  starter[IS_TR] = true;
+  starter[TYPE] = type;
+  starter[CALLER] = new Set([starter]);
+  starter[ADD] = callback => {
+    validateFunctionType(callback, 'next');
+    next = compose(
+      callback,
+      next,
     );
+    return starter;
+  };
 
-    for (let i = 0; i < dependencies.length; i++) {
-      const dependency = dependencies[i];
-      dependency.add(ctx => {
-        const cache = ctx[cacheType] || new Array(dependencies.length);
-        cache[i] = ctx[dependency.type];
-        ctx[cacheType] = cache;
-        return ctx;
-      });
-    }
-    this.add(ctx => {
-      ctx[type] = mapper(...ctx[cacheType]);
+  let next = _ => _;
+
+  return starter;
+}
+
+export function combine(dependencies, mapper) {
+  validateDependencies(dependencies);
+  validateFunctionType(mapper, 'mapper');
+
+  function map(ctx) {
+    ctx[type] = mapper(ctx[type], ...ctx[typeCache]);
+    return ctx;
+  }
+
+  const type = createConstant('combine');
+  const typeCache = createConstant('combine/cache');
+  map[IS_TR] = true;
+  map[TYPE] = type;
+  map[CALLER] = collectStarters(dependencies);
+  map[ADD] = next => {
+    map[CALLER].forEach(d => d[ADD](next));
+    return map;
+  };
+
+  for (let i = 0; i < dependencies.length; i++) {
+    const dependencyType = dependencies[i][TYPE];
+    dependencies[i][ADD](ctx => {
+      const cache = ctx[typeCache] || new Array(dependencies.length);
+      cache[i] = ctx[dependencyType];
+      ctx[typeCache] = cache;
       return ctx;
     });
   }
 
-  add(next) {
-    this._dependencies.forEach(d => d.add(next));
+  map[ADD](map);
+
+  return map;
+}
+
+// TODO: copypast needed parts from `combine` and remove it
+export function createHandler() {
+  let type;
+  const handlersDependencies = [];
+  const handlersMappers = [];
+  function mapper(ctx) {
+    return ctx[type];
   }
+
+  const chain = {
+    on(dependencies, mapper) {
+      validateDependencies(dependencies);
+      validateFunctionType(mapper, 'mapper');
+      handlersDependencies.push(dependencies);
+      handlersMappers.push(mapper);
+      return chain;
+    },
+    done() {
+      const resultDependencies = handlersDependencies.map(
+        (handlerDependencies, i) => {
+          let handlerType;
+
+          const handlerStarters = collectStarters(handlerDependencies);
+
+          handlerStarters.forEach(d =>
+            d[ADD](ctx => {
+              ctx[handlerType] = mapper(ctx);
+              return ctx;
+            }),
+          );
+
+          const handler = combine(handlerDependencies, handlersMappers[i]);
+
+          handlerStarters.forEach(d =>
+            d[ADD](ctx => {
+              ctx[type] = ctx[handlerType];
+              return ctx;
+            }),
+          );
+
+          handlerType = handler[TYPE];
+
+          return handler;
+        },
+      );
+
+      const result = combine(resultDependencies, _ => _);
+
+      type = result[TYPE];
+
+      return result;
+    },
+  };
+
+  return chain;
 }
