@@ -1,7 +1,1 @@
-export {
-  createCaller,
-  combine,
-  createHandler,
-  handleSnapshot,
-  getValueFromSnapshot,
-} from './tr';
+export { Tr, createStore } from './tr';

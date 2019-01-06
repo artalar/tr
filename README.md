@@ -65,11 +65,11 @@ const displayName$ = Observer.from(firstName$, fullName$).map(getDisplayName);
 // >         fullName ->
 // >             displayName ->
 
-const fetchResponse$ = createCaller();
-const firstName$ = combine([fetchResponse$], getFirstName);
-const lastName$ = combine([fetchResponse$], getLastName);
-const fullName$ = combine([firstName$, lastName$], getFullName);
-const displayName$ = combine([firstName$, fullName$], getDisplayName);
+const FETCH_RESPONSE = 'FETCH_RESPONSE';
+const firstName$ = new Tr().on('FETCH_RESPONSE', getFirstName);
+const lastName$ = new Tr().on('FETCH_RESPONSE', getLastName);
+const fullName$ = new Tr().compute(firstName$, lastName$, getFullName);
+const displayName$ = new Tr().compute(firstName$, fullName$, getDisplayName);
 ```
 
 > **For more examples see [tests](src/__tests__/index.js)**
