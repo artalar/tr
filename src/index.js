@@ -1,1 +1,1 @@
-export { Tr, createStore } from './tr';
+export { createReducer, combineReducers, createStore } from './tr';

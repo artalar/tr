@@ -1,22 +1,25 @@
-import { Tr, createStore } from '..';
+import { createReducer, createStore } from '..';
 
 describe('Tr', () => {
   it('should work', () => {
     const trackCounter3 = jest.fn();
     const trackCounters = jest.fn();
 
-    const counter1 = new Tr()
+    const counter1 = createReducer()
       .on('initial', () => 0)
-      .on('count', (state, v) => state + v);
+      .on('count', (state, v) => state + v)
+      .done();
 
-    const counter2 = new Tr()
+    const counter2 = createReducer()
       .on('initial', () => 0)
-      .on('count', (state, v) => state + v);
+      .on('count', (state, v) => state + v)
+      .done();
 
-    const counter3 = new Tr() //
-      .on('initial', () => 0);
+    const counter3 = createReducer() //
+      .on('initial', () => 0)
+      .done();
 
-    const counters = new Tr() //
+    const counters = createReducer() //
       .compute(
         counter1,
         counter2,
@@ -27,26 +30,30 @@ describe('Tr', () => {
           count2,
           count3,
         }),
-      );
+      )
+      .done();
 
     const store = createStore(counters);
 
-    store.subscribe(trackCounters, counters);
+    store.subscribe(trackCounters);
     store.subscribe(trackCounter3, counter3);
 
-    expect(store.dispatch('initial')).toEqual({
+    store.dispatch({ type: 'initial' });
+    expect(store.getState()).toEqual({
       count1: 0,
       count2: 0,
       count3: 0,
     });
 
-    expect(store.dispatch('count', 1)).toEqual({
+    store.dispatch({ type: 'count', payload: 1 });
+    expect(store.getState()).toEqual({
       count1: 1,
       count2: 1,
       count3: 0,
     });
 
-    expect(store.dispatch('count', 1)).toEqual({
+    store.dispatch({ type: 'count', payload: 1 });
+    expect(store.getState()).toEqual({
       count1: 2,
       count2: 2,
       count3: 0,
@@ -64,27 +71,31 @@ describe('Tr', () => {
   describe('rhombus reference', () => {
     const NAME = 'NAME';
 
-    const firstName$ = new Tr().on(NAME, (_, name) => name.split(' ')[0]);
-    const lastName$ = new Tr().on(NAME, (_, name) => name.split(' ')[1]);
-    const fullName$ = new Tr().compute(firstName$, lastName$, (_, fn, ln) =>
-      [fn, ln].join(' '),
-    );
+    const firstName$ = createReducer()
+      .on(NAME, (_, name) => name.split(' ')[0])
+      .done();
+    const lastName$ = createReducer()
+      .on(NAME, (_, name) => name.split(' ')[1])
+      .done();
+    const fullName$ = createReducer()
+      .compute(firstName$, lastName$, (_, fn, ln) => [fn, ln].join(' '))
+      .done();
 
-    const displayName$ = new Tr().compute(
-      firstName$,
-      fullName$,
-      (_, firstN, fullN) => (firstN.length < 10 ? fullN : firstN),
-    );
+    const displayName$ = createReducer()
+      .compute(firstName$, fullName$, (_, firstN, fullN) =>
+        firstN.length < 10 ? fullN : firstN,
+      )
+      .done();
 
     const store = createStore(displayName$);
 
     const track = jest.fn();
-    store.subscribe(track, displayName$);
+    store.subscribe(track);
 
-    store.dispatch('NAME', 'John Doe');
+    store.dispatch({ type: 'NAME', payload: 'John Doe' });
     expect(track.mock.calls[0][0]).toBe('John Doe');
 
-    store.dispatch('NAME', 'Jooooooooooooohn Doe');
+    store.dispatch({ type: 'NAME', payload: 'Jooooooooooooohn Doe' });
     expect(track.mock.calls[1][0]).toBe('Jooooooooooooohn');
   });
 
@@ -103,29 +114,37 @@ describe('Tr', () => {
       NAME = 'NAME';
 
       firstNameTrack = jest.fn((_, name) => name.split(' ')[0]);
-      firstName$ = new Tr().on(NAME, firstNameTrack);
+      firstName$ = createReducer()
+        .on(NAME, firstNameTrack)
+        .done();
 
-      lastName$ = new Tr().on(NAME, (_, name) => name.split(' ')[1]);
+      lastName$ = createReducer()
+        .on(NAME, (_, name) => name.split(' ')[1])
+        .done();
 
       fullNameTrack = jest.fn((_, fn, ln) => [fn, ln].join(' '));
-      fullName$ = new Tr().compute(firstName$, lastName$, fullNameTrack);
+      fullName$ = createReducer()
+        .compute(firstName$, lastName$, fullNameTrack)
+        .done();
 
       displayNameTrack = jest.fn((_, firstN, fullN) =>
         firstN.length < 10 ? fullN : firstN,
       );
-      displayName$ = new Tr().compute(firstName$, fullName$, displayNameTrack);
+      displayName$ = createReducer()
+        .compute(firstName$, fullName$, displayNameTrack)
+        .done();
 
       store = createStore(displayName$);
     });
 
     it('update', () => {
-      expect(store.dispatch('NAME', 'John Doe')).toBe('John Doe');
+      store.dispatch({ type: 'NAME', payload: 'John Doe' });
+      expect(store.getState()).toBe('John Doe');
       expect(fullNameTrack.mock.calls.length).toBe(1);
       expect(displayNameTrack.mock.calls.length).toBe(1);
 
-      expect(store.dispatch('NAME', 'Jooooooooooooohn Doe')).toBe(
-        'Jooooooooooooohn',
-      );
+      store.dispatch({ type: 'NAME', payload: 'Jooooooooooooohn Doe' });
+      expect(store.getState()).toBe('Jooooooooooooohn');
       expect(firstNameTrack.mock.calls.length).toBe(2);
       expect(fullNameTrack.mock.calls.length).toBe(2);
       expect(displayNameTrack.mock.calls.length).toBe(2);

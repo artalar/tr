@@ -63,8 +63,7 @@
   },
   "homepage": "https://github.com/artalar/tr",
   "keywords": [
-    "EventEmitter",
-    "PubSub",
+    "redux",
     "state-manager",
     "state",
     "reactive"
