@@ -1,7 +1,19 @@
 ![image](https://user-images.githubusercontent.com/27290320/50466652-e8224e80-09af-11e9-92db-22ea677ece70.png)
 
-# **WIP**
+> ## **WIP**
 
+# tr-reducer
+
+Set of utils for reactive programming
+
+## Motivation
+
+### Goals
+- to low boilerplate
+- automaticaly dependency tracking without glitches (вместо мемоизации)
+- type inferetance
+
+<!--
 ```javascript
 function getFirstName(data) {
   return data.firstName;
@@ -73,3 +85,4 @@ const displayName$ = new Tr().compute(firstName$, fullName$, getDisplayName);
 ```
 
 > **For more examples see [tests](src/__tests__/index.js)**
+-->

@@ -5,8 +5,7 @@ describe('Tr', () => {
     const trackCounter3 = jest.fn();
     const trackCounters = jest.fn();
 
-    const counter1 = createReducer()
-      .on('initial', () => 0)
+    const counter1 = createReducer(0)
       .on('count', (state, v) => state + v)
       .done();
 
