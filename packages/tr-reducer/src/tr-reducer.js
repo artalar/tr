@@ -86,15 +86,25 @@ export function createReducer(defaultValue) {
           'Reducer is "done" - dependencies locked and can not be changed',
         );
       }
-      const mapper = args.pop();
+      let mapper = args.pop();
       const deps = args;
       const dependedActionTypesList = [];
 
+      if (deps.length === 0) {
+        if (typeof mapper === 'object' && mapper !== null) {
+          const shape = mapper;
+          const keys = Object.keys(shape);
+          for (let i = 0; i < keys.length; i++) {
+            deps.push(shape[keys[i]]);
+          }
+          mapper = (state, ...values) =>
+            values.reduce((acc, v, i) => ((acc[keys[i]] = v), acc), {});
+        } else {
+          throw new OwnError('Dependencies not passed');
+        }
+      }
       if (typeof mapper !== 'function') {
         throw new OwnError('Expected the mapper is must be a function');
-      }
-      if (deps.length === 0) {
-        throw new OwnError('Dependencies not passed');
       }
       for (let i = 0; i < deps.length; i++) {
         if (!deps[i][ID]) {

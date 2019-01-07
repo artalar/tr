@@ -30,6 +30,10 @@ describe('Tr', () => {
     });
     it('"compute", "done"', () => {
       expect(() => {
+        createReducer().compute({ props: createReducer().done() });
+      }).not.toThrow();
+
+      expect(() => {
         createReducer().compute(createReducer().done(), () => {});
       }).not.toThrow();
 
@@ -100,50 +104,64 @@ describe('Tr', () => {
       .on(COUNT, (state, v) => state + v)
       .done();
 
-    const counters = createReducer()
-      .compute(
-        counter1,
-        counter2,
-        counter3,
-        (state, count1, count2, count3) => ({
-          ...state,
-          count1,
-          count2,
-          count3,
-        }),
-      )
-      .done();
+    test(
+      createReducer()
+        .compute({
+          count1: counter1,
+          count2: counter2,
+          count3: counter3,
+        })
+        .done(),
+    );
 
-    const countersReducer = counters.build();
+    test(
+      createReducer()
+        .compute(
+          counter1,
+          counter2,
+          counter3,
+          (state, count1, count2, count3) => ({
+            ...state,
+            count1,
+            count2,
+            count3,
+          }),
+        )
+        .done(),
+    );
 
-    const context = {
-      state: {},
-      cache: {},
-      changedIds: [],
-    };
+    function test(counters) {
+      const countersReducer = counters.build();
 
-    expect(countersReducer(context, { type: INITIAL })).toEqual({
-      count1: 0,
-      count2: 0,
-      count3: undefined,
-    });
-    context.state = Object.assign({}, context.cache);
-    context.cache = {};
-    context.changedIds = [];
+      const context = {
+        state: {},
+        cache: {},
+        changedIds: [],
+      };
 
-    expect(countersReducer(context, { type: COUNT, payload: 1 })).toEqual({
-      count1: 0,
-      count2: 1,
-      count3: 2,
-    });
-    context.state = Object.assign({}, context.state, context.cache);
-    context.cache = {};
-    context.changedIds = [];
+      expect(countersReducer(context, { type: INITIAL })).toEqual({
+        count1: 0,
+        count2: 0,
+        count3: undefined,
+      });
+      context.state = Object.assign({}, context.cache);
+      context.cache = {};
+      context.changedIds = [];
 
-    expect(countersReducer(context, { type: COUNT, payload: 1 })).toEqual({
-      count1: 0,
-      count2: 2,
-      count3: 3,
-    });
+      expect(countersReducer(context, { type: COUNT, payload: 1 })).toEqual({
+        count1: 0,
+        count2: 1,
+        count3: 2,
+      });
+      context.state = Object.assign({}, context.state, context.cache);
+      context.cache = {};
+      context.changedIds = [];
+
+      expect(countersReducer(context, { type: COUNT, payload: 1 })).toEqual({
+        count1: 0,
+        count2: 2,
+        count3: 3,
+      });
+    }
   });
 });
