@@ -1,5 +1,5 @@
 {
-  "name": "@artalar/tr",
+  "name": "@artalar/tr-store",
   "version": "0.0.1",
   "description": "tiny reactive",
   "main": "lib/index.js",
@@ -23,6 +23,7 @@
     "prettify:watch": "onchange '**/*.js' -- prettier --write {{changed}}"
   },
   "dependencies": {
+    "@artalar/tr-reducer": "0.0.2",
     "symbol-observable": "^1.2.0"
   },
   "devDependencies": {

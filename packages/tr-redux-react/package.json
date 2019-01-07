@@ -1,5 +1,5 @@
 {
-  "name": "@artalar/tr",
+  "name": "@artalar/tr-redux-react",
   "version": "0.0.1",
   "description": "tiny reactive",
   "main": "lib/index.js",
@@ -22,16 +22,20 @@
     "prettify": "prettier --write \"src/**/*.js\"",
     "prettify:watch": "onchange '**/*.js' -- prettier --write {{changed}}"
   },
-  "dependencies": {
-    "symbol-observable": "^1.2.0"
+  "peerDependencies": {
+    "@artalar/tr-reducer": "^0.0.2",
+    "@artalar/tr-redux": "^0.0.2",
+    "react": "^16.7.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.1.5",
     "@babel/core": "^7.1.6",
+    "@babel/plugin-proposal-class-properties": "^7.2.3",
     "@babel/plugin-proposal-object-rest-spread": "^7.0.0",
     "@babel/polyfill": "^7.0.0",
     "@babel/preset-env": "^7.1.6",
     "@babel/preset-flow": "^7.0.0",
+    "@babel/preset-react": "^7.0.0",
     "babel-core": "^7.0.0-bridge.0",
     "babel-eslint": "^10.0.1",
     "babel-jest": "^23.6.0",
@@ -47,6 +51,7 @@
     "flow-bin": "^0.86.0",
     "jest": "^23.6.0",
     "onchange": "^5.2.0",
+    "peer-deps-externals-webpack-plugin": "^1.0.4",
     "prettier": "^1.15.2",
     "rimraf": "^2.6.2",
     "webpack": "^4.25.1",

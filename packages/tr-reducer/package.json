@@ -1,6 +1,6 @@
 {
-  "name": "@artalar/tr",
-  "version": "0.0.1",
+  "name": "@artalar/tr-reducer",
+  "version": "0.0.2",
   "description": "tiny reactive",
   "main": "lib/index.js",
   "module": "es/index.js",
@@ -21,9 +21,6 @@
     "test:watch": "jest --watch",
     "prettify": "prettier --write \"src/**/*.js\"",
     "prettify:watch": "onchange '**/*.js' -- prettier --write {{changed}}"
-  },
-  "dependencies": {
-    "symbol-observable": "^1.2.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.1.5",

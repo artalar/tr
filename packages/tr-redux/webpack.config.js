@@ -1,4 +1,5 @@
 const path = require('path');
+const PeerDepsExternalsPlugin = require('peer-deps-externals-webpack-plugin');
 
 module.exports = {
   mode: 'production',
@@ -10,7 +11,7 @@ module.exports = {
       __dirname,
       process.env.BABEL_ENV === 'commonjs' ? 'lib' : 'es',
     ),
-    library: 'ups',
+    library: 'tr-redux',
     libraryTarget: 'umd',
   },
   module: {
@@ -26,6 +27,7 @@ module.exports = {
       },
     ],
   },
+  plugins: [new PeerDepsExternalsPlugin()],
   stats: {
     colors: true,
   },
