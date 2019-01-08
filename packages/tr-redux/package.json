@@ -1,6 +1,6 @@
 {
   "name": "@artalar/tr-redux",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "tiny reactive",
   "main": "lib/index.js",
   "module": "es/index.js",
@@ -24,7 +24,7 @@
   },
   "peerDependencies": {
     "redux": "^4.0.1",
-    "@artalar/tr-reducer": "0.0.2"
+    "@artalar/tr-reducer": "^0.0.4"
   },
   "devDependencies": {
     "peer-deps-externals-webpack-plugin": "^1.0.4",
