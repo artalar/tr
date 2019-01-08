@@ -14,6 +14,16 @@ describe('tr-redux', () => {
       expect(store.getState(root)).toEqual({ child: true });
       expect(store.getState()).toEqual({ child: true });
     });
+
+    it('getState lens', () => {
+      const root = createReducer([1, 2, 3]).done();
+
+      const store = createStore(root);
+
+      expect(store.getState(root)).toEqual([1, 2, 3]);
+      expect(store.getState(root, 0)).toEqual(1);
+    });
+
     it('dispatch', () => {
       const change = 'CHANGE';
 

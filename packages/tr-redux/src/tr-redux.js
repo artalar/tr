@@ -99,7 +99,7 @@ export function createStore(reducer, preloadedState, enhancer) {
     const targetId = getId(target);
     getters[targetId] = getGetter(target);
 
-    if (arguments.length === 3) {
+    if (key !== undefined) {
       if (!(targetId in subscribersToLenses)) {
         subscribersToLenses[targetId] = Object.create(null);
       }
@@ -127,7 +127,10 @@ export function createStore(reducer, preloadedState, enhancer) {
     };
   };
 
-  store.getState = function getState(target = reducer) {
+  store.getState = function getState(target = reducer, key) {
+    if (key !== undefined) {
+      return getGetter(target)(context.state[getId(target)], key);
+    }
     return context.state[getId(target)];
   };
 
