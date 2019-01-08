@@ -208,7 +208,7 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
         const newValue = set(previousValue, key, newItemValue);
         cache[id] = newValue;
         if (!isCacheExist && previousValue !== newValue) {
-          changedIds.push({ id, key, get });
+          changedIds.push({ id, key });
         }
       };
       if (!(actionType in depsHandlersList)) {

@@ -1,4 +1,4 @@
-import { createReducer, getId } from '..';
+import { createReducer, getId, getGetter } from '..';
 
 const createContext = () => ({
   state: {},
@@ -229,16 +229,14 @@ describe('Tr', () => {
 
       reducer(context, { type: fillList, payload: [1, 2, 3] });
       expect(context.cache[listReducerId]).toEqual([1, 2, 3]);
-      expect(context.changedIds).toEqual([listReducerId]);
       Object.assign(context.state, context.cache);
       context.cache = {};
       context.changedIds = [];
 
       reducer(context, { type: changeItem, key: 0, payload: 1.1 });
       expect(context.cache[listReducerId]).toEqual([1.1, 2, 3]);
-      expect(context.changedIds).toEqual([
-        { id: listReducerId, key: 0, get: expect.any(Function) },
-      ]);
+      expect(context.changedIds).toEqual([{ id: listReducerId, key: 0 }]);
+      expect(getGetter(list)(context.cache[listReducerId], 0)).toEqual(1.1);
     });
     it('custom lens', () => {
       const fillList = 'FILL_LIST';
@@ -269,9 +267,8 @@ describe('Tr', () => {
       expect(context.cache[listReducerId]).toEqual(
         new Map([[1, 1.1], [2, 2], [3, 3]]),
       );
-      expect(context.changedIds).toEqual([
-        { id: listReducerId, key: 1, get: expect.any(Function) },
-      ]);
+      expect(context.changedIds).toEqual([{ id: listReducerId, key: 1 }]);
+      expect(getGetter(list)(context.cache[listReducerId], 1)).toEqual(1.1);
     });
   });
 });
