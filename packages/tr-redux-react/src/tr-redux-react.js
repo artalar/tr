@@ -1,121 +1,64 @@
-import React from "react";
-import { getId } from "@artalar/tr-reducer";
-import { CONTEXT_KEY } from "@artalar/tr-redux";
+import React from 'react';
 
 const Context = React.createContext();
 
 export class Provider extends React.Component {
-  subscribers = new Set();
-
-  componentDidMount() {
-    const {
-      subscribers,
-      props: {
-        store,
-        store: { [CONTEXT_KEY]: context }
-      }
-    } = this;
-
-    this.unsubscribe = store.subscribe(() => {
-      const { changedIds, cache } = context;
-      for (let i = 0; i < changedIds.length; i++) {
-        const id = changedIds[i];
-        if (id in subscribers) {
-          const newValue = cache[id];
-          subscribers[id].forEach(s => s(newValue));
-        }
-      }
-    });
-  }
-
-  componentWillUnmount() {
-    if (this.unsubscribe) this.unsubscribe();
-  }
-
-  getReducerState = target => {
-    if (!target) return;
-    return this.props.store[CONTEXT_KEY].state[getId(target)];
-  };
-
-  subscribe = (target, listener) => {
-    if (!target) {
-      return () => {};
-    }
-    const { subscribers } = this;
-    const id = getId(target);
-    if (!(id in subscribers)) {
-      subscribers[id] = new Set();
-    }
-    const relativeSubscribers = subscribers[id];
-
-    relativeSubscribers.add(listener);
-    return () => {
-      relativeSubscribers.delete(listener);
-      subscribers[id] = new Set(relativeSubscribers);
-    };
-  };
-
   render() {
     return React.createElement(
       Context.Provider,
       {
-        value: {
-          dispatch: this.props.store.dispatch,
-          subscribe: this.subscribe,
-          getReducerState: this.getReducerState
-        }
+        value: this.props.store,
       },
-      this.props.children
+      this.props.children,
     );
   }
 }
 
 function performOptions(options) {
   switch (typeof options) {
-    case "function":
+    case 'function':
       return {
         mapper: options,
-        predicate: () => true
+        predicate: () => true,
       };
-    case "object": {
+    case 'object': {
       return options;
     }
-    case "undefined":
+    case 'undefined':
       return {
         mapper: () => ({}),
-        predicate: () => true
+        predicate: () => true,
       };
-    case "string": {
+    case 'string': {
       const key = options;
       return {
         mapper: v => ({ [key]: v }),
-        predicate: () => true
+        predicate: () => true,
       };
     }
     default:
-      throw new TypeError("Unexpected connnect options");
+      throw new TypeError('Unexpected connnect options');
   }
 }
 
-export const connect = (target, options, predicate) => {
+export const connect = (target, options, key) => {
   const { mapper } = performOptions(options);
 
   return Component =>
     class Connected extends React.Component {
       static contextType = Context;
 
+      state = {};
+
       componentDidMount() {
-        this.unsubscribe = this.context.subscribe(target, value =>
-          this.forceUpdate()
-        );
+        this.unsubscribe =
+          key === undefined
+            ? this.context.subscribe(() => this.forceUpdate(), target)
+            : this.context.subscribe(() => this.forceUpdate(), target, key);
       }
 
       componentWillUnmount() {
         if (this.unsubscribe) this.unsubscribe();
-      }
-
-      getReducerState() {
-        return this.context.getReducerState(target);
       }
 
       render() {
@@ -123,10 +66,10 @@ export const connect = (target, options, predicate) => {
           Component,
           {
             ...this.props,
-            ...mapper(this.getReducerState(), this.props),
-            dispatch: this.context.dispatch
+            ...mapper(this.context.getState(target, key), this.props),
+            dispatch: this.context.dispatch,
           },
-          this.props.children
+          this.props.children,
         );
       }
     };
