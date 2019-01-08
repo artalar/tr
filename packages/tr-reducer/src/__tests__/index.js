@@ -1,5 +1,4 @@
-import { createReducer } from '..';
-import { ID } from '../tr-reducer';
+import { createReducer, getId } from '..';
 
 const createContext = () => ({
   state: {},
@@ -70,10 +69,6 @@ describe('Tr', () => {
 
       expect(() => {
         createReducer().lens(undefined, () => {});
-      }).toThrow();
-
-      expect(() => {
-        createReducer().lens('', () => {}, {});
       }).toThrow();
 
       expect(() => {
@@ -226,7 +221,7 @@ describe('Tr', () => {
         .on(fillList, (state, payload) => payload)
         .lens(changeItem, (itemState, payload) => payload)
         .done();
-      const listReducerId = list[ID];
+      const listReducerId = getId(list);
 
       const reducer = list.build();
 
@@ -249,14 +244,14 @@ describe('Tr', () => {
       const fillList = 'FILL_LIST';
       const changeItem = 'CHANGE_ITEM';
 
-      const list = createReducer(new Map())
+      const list = createReducer(new Map(), {
+        get: (state, key) => state.get(key),
+        set: (state, key, payload) => new Map(state).set(key, payload),
+      })
         .on(fillList, (state, payload) => payload)
-        .lens(changeItem, (itemState, payload) => payload, {
-          get: (state, key) => state.get(key),
-          set: (state, key, payload) => new Map(state).set(key, payload),
-        })
+        .lens(changeItem, (itemState, payload) => payload)
         .done();
-      const listReducerId = list[ID];
+      const listReducerId = getId(list);
 
       const reducer = list.build();
 

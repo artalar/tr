@@ -21,9 +21,10 @@ const isValidContext = context =>
   Boolean(context && context.state && context.cache && context.changedIds);
 const isValidAction = action => Boolean(action && action.type);
 
-export const ID = generateUid('@@tr/createReducer/ID');
+const ID = generateUid('@@tr/createReducer/ID');
 const DEPS_HANDLERS_LIST = generateUid('@@tr/createReducer/DEPS_HANDLERS_LIST');
 const IS_DONE = generateUid('@@tr/createReducer/IS_DONE');
+const GETTER = generateUid('@@tr/createReducer/GETTER');
 
 function noop() {}
 
@@ -46,7 +47,11 @@ export function getId(reducer) {
   return reducer[ID];
 }
 
-export function createReducer(defaultValue) {
+export function getGetter(reducer) {
+  return reducer[GETTER];
+}
+
+export function createReducer(defaultValue, { get, set } = defaultLense) {
   const id = generateUid('@@tr/createReducer/id');
   // "dep*" - dependency
   const depsHandlersList = Object.create(null);
@@ -55,6 +60,7 @@ export function createReducer(defaultValue) {
   const builder = {
     [ID]: id,
     [DEPS_HANDLERS_LIST]: depsHandlersList,
+    [GETTER]: get,
     on(actionType, mapper) {
       if (isDone) {
         throw new OwnError(
@@ -169,7 +175,7 @@ export function createReducer(defaultValue) {
 
       return builder;
     },
-    lens(actionType, mapper, { get, set } = defaultLense) {
+    lens(actionType, mapper) {
       if (isDone) {
         throw new OwnError(
           'Reducer is "done" - dependencies locked and can not be changed',
@@ -180,12 +186,6 @@ export function createReducer(defaultValue) {
       }
       if (typeof mapper !== 'function') {
         throw new OwnError('The mapper is must be a function');
-      }
-      if (typeof set !== 'function') {
-        throw new OwnError('The lens set is must be a function');
-      }
-      if (typeof get !== 'function') {
-        throw new OwnError('The lens get is must be a function');
       }
 
       const handler = ({ cache, state, changedIds }, action) => {
