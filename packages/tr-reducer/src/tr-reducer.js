@@ -189,6 +189,7 @@ export function createReducer(defaultValue) {
       }
 
       const handler = ({ cache, state, changedIds }, action) => {
+        const { key, payload } = action;
         if (!('key' in action)) {
           throw new OwnError(
             'Can not use "lense" handler without the key of item',
@@ -201,13 +202,13 @@ export function createReducer(defaultValue) {
           : id in state
           ? state[id]
           : defaultValue;
-        const previousItemValue = get(previousValue, action.key);
-        const newItemValue = mapper(previousItemValue, action.payload);
+        const previousItemValue = get(previousValue, key);
+        const newItemValue = mapper(previousItemValue, payload);
         // TODO: check changes
-        const newValue = set(previousValue, action.key, newItemValue);
+        const newValue = set(previousValue, key, newItemValue);
         cache[id] = newValue;
         if (!isCacheExist && previousValue !== newValue) {
-          changedIds.push([id, action.key, get]);
+          changedIds.push({ id, key, get });
         }
       };
       if (!(actionType in depsHandlersList)) {

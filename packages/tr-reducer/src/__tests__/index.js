@@ -242,7 +242,7 @@ describe('Tr', () => {
       reducer(context, { type: changeItem, key: 0, payload: 1.1 });
       expect(context.cache[listReducerId]).toEqual([1.1, 2, 3]);
       expect(context.changedIds).toEqual([
-        [listReducerId, 0, expect.any(Function)],
+        { id: listReducerId, key: 0, get: expect.any(Function) },
       ]);
     });
     it('custom lens', () => {
@@ -275,7 +275,7 @@ describe('Tr', () => {
         new Map([[1, 1.1], [2, 2], [3, 3]]),
       );
       expect(context.changedIds).toEqual([
-        [listReducerId, 1, expect.any(Function)],
+        { id: listReducerId, key: 1, get: expect.any(Function) },
       ]);
     });
   });
