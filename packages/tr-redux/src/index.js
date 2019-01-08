@@ -1,1 +1,1 @@
-export { CONTEXT_KEY, createReducer, createStore } from './tr-redux';
+export { createReducer, createStore } from './tr-redux';

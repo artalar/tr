@@ -1,6 +1,6 @@
 {
   "name": "@artalar/tr-redux",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "description": "tiny reactive",
   "main": "lib/index.js",
   "module": "es/index.js",
@@ -24,10 +24,10 @@
   },
   "peerDependencies": {
     "redux": "^4.0.1",
-    "@artalar/tr-reducer": "^0.0.4"
+    "@artalar/tr-reducer": "^0.0.7"
   },
   "devDependencies": {
-    "peer-deps-externals-webpack-plugin": "^1.0.4",
+    "@artalar/tr-reducer": "0.0.7",
     "@babel/cli": "^7.1.5",
     "@babel/core": "^7.1.6",
     "@babel/plugin-proposal-object-rest-spread": "^7.0.0",
@@ -49,7 +49,9 @@
     "flow-bin": "^0.86.0",
     "jest": "^23.6.0",
     "onchange": "^5.2.0",
+    "peer-deps-externals-webpack-plugin": "^1.0.4",
     "prettier": "^1.15.2",
+    "redux": "^4.0.1",
     "rimraf": "^2.6.2",
     "webpack": "^4.25.1",
     "webpack-cli": "^3.1.2"
