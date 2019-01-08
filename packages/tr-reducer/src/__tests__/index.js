@@ -1,4 +1,11 @@
 import { createReducer } from '..';
+import { ID } from '../tr-reducer';
+
+const createContext = () => ({
+  state: {},
+  cache: {},
+  changedIds: [],
+});
 
 describe('Tr', () => {
   describe('API', () => {
@@ -11,6 +18,7 @@ describe('Tr', () => {
         createReducer('default value');
       }).not.toThrow();
     });
+
     it('"on"', () => {
       expect(() => {
         createReducer().on('', () => {});
@@ -28,6 +36,54 @@ describe('Tr', () => {
         createReducer().on(undefined, () => {});
       }).toThrow();
     });
+
+    it('"lens"', () => {
+      expect(() => {
+        createReducer().lens('', () => {});
+      }).not.toThrow();
+
+      expect(() => {
+        createReducer().lens('', () => {}, { set() {}, get() {} });
+      }).not.toThrow();
+
+      expect(() =>
+        createReducer([0])
+          .lens('string', (s, v) => v)
+          .done()
+          .build()(createContext(), { type: 'string', key: 0, payload: 1 }),
+      ).not.toThrow();
+
+      expect(
+        createReducer([0])
+          .lens('string', (s, v) => v)
+          .done()
+          .build()(createContext(), { type: 'string', key: 0, payload: 1 }),
+      ).toEqual([1]);
+
+      expect(() => {
+        createReducer().lens();
+      }).toThrow();
+
+      expect(() => {
+        createReducer().lens('');
+      }).toThrow();
+
+      expect(() => {
+        createReducer().lens(undefined, () => {});
+      }).toThrow();
+
+      expect(() => {
+        createReducer().lens('', () => {}, {});
+      }).toThrow();
+
+      expect(() => {
+        createReducer([0])
+          .lens('string', (s, v) => v)
+          .done()
+          .build()(createContext(), { type: 'string', payload: 1 });
+      }).toThrow();
+    });
+
     it('"compute", "done"', () => {
       expect(() => {
         createReducer().compute({ props: createReducer().done() });
@@ -133,11 +189,7 @@ describe('Tr', () => {
     function test(counters) {
       const countersReducer = counters.build();
 
-      const context = {
-        state: {},
-        cache: {},
-        changedIds: [],
-      };
+      const context = createContext();
 
       expect(countersReducer(context, { type: INITIAL })).toEqual({
         count1: 0,
@@ -163,5 +215,68 @@ describe('Tr', () => {
         count3: 3,
       });
     }
+  });
+
+  describe('lens', () => {
+    it('default lens', () => {
+      const fillList = 'FILL_LIST';
+      const changeItem = 'CHANGE_ITEM';
+
+      const list = createReducer([])
+        .on(fillList, (state, payload) => payload)
+        .lens(changeItem, (itemState, payload) => payload)
+        .done();
+      const listReducerId = list[ID];
+
+      const reducer = list.build();
+
+      const context = createContext();
+
+      reducer(context, { type: fillList, payload: [1, 2, 3] });
+      expect(context.cache[listReducerId]).toEqual([1, 2, 3]);
+      expect(context.changedIds).toEqual([listReducerId]);
+      Object.assign(context.state, context.cache);
+      context.cache = {};
+      context.changedIds = [];
+
+      reducer(context, { type: changeItem, key: 0, payload: 1.1 });
+      expect(context.cache[listReducerId]).toEqual([1.1, 2, 3]);
+      expect(context.changedIds).toEqual([
+        [listReducerId, 0, expect.any(Function)],
+      ]);
+    });
+    it('custom lens', () => {
+      const fillList = 'FILL_LIST';
+      const changeItem = 'CHANGE_ITEM';
+
+      const list = createReducer(new Map())
+        .on(fillList, (state, payload) => payload)
+        .lens(changeItem, (itemState, payload) => payload, {
+          get: (state, key) => state.get(key),
+          set: (state, key, payload) => new Map(state).set(key, payload),
+        })
+        .done();
+      const listReducerId = list[ID];
+
+      const reducer = list.build();
+
+      const context = createContext();
+
+      const newList = new Map([[1, 1], [2, 2], [3, 3]]);
+      reducer(context, { type: fillList, payload: newList });
+      expect(context.cache[listReducerId]).toEqual(newList);
+      expect(context.changedIds).toEqual([listReducerId]);
+      Object.assign(context.state, context.cache);
+      context.cache = {};
+      context.changedIds = [];
+
+      reducer(context, { type: changeItem, key: 1, payload: 1.1 });
+      expect(context.cache[listReducerId]).toEqual(
+        new Map([[1, 1.1], [2, 2], [3, 3]]),
+      );
+      expect(context.changedIds).toEqual([
+        [listReducerId, 1, expect.any(Function)],
+      ]);
+    });
   });
 });

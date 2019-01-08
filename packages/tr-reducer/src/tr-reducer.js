@@ -21,7 +21,7 @@ const isValidContext = context =>
   Boolean(context && context.state && context.cache && context.changedIds);
 const isValidAction = action => Boolean(action && action.type);
 
-const ID = generateUid('@@tr/createReducer/ID');
+export const ID = generateUid('@@tr/createReducer/ID');
 const DEPS_HANDLERS_LIST = generateUid('@@tr/createReducer/DEPS_HANDLERS_LIST');
 const IS_DONE = generateUid('@@tr/createReducer/IS_DONE');
 
@@ -32,6 +32,15 @@ class OwnError extends Error {
     super(`@@tg-reducer/${msg}`);
   }
 }
+
+const defaultLense = {
+  get: (state, itemId) => state[itemId],
+  set: (state, itemId, value) => {
+    const newState = Array.isArray(state) ? state.slice(0) : { ...state };
+    newState[itemId] = value;
+    return newState;
+  },
+};
 
 export function getId(reducer) {
   return reducer[ID];
@@ -157,6 +166,54 @@ export function createReducer(defaultValue) {
           },
         );
       }
+
+      return builder;
+    },
+    lens(actionType, mapper, { get, set } = defaultLense) {
+      if (isDone) {
+        throw new OwnError(
+          'Reducer is "done" - dependencies locked and can not be changed',
+        );
+      }
+      if (typeof actionType !== 'string') {
+        throw new OwnError('The action type is must be a string');
+      }
+      if (typeof mapper !== 'function') {
+        throw new OwnError('The mapper is must be a function');
+      }
+      if (typeof set !== 'function') {
+        throw new OwnError('The lens set is must be a function');
+      }
+      if (typeof get !== 'function') {
+        throw new OwnError('The lens get is must be a function');
+      }
+
+      const handler = ({ cache, state, changedIds }, action) => {
+        if (!('key' in action)) {
+          throw new OwnError(
+            'Can not use "lense" handler without the key of item',
+          );
+        }
+        const isCacheExist = id in cache;
+        // eslint-disable-next-line
+        const previousValue = isCacheExist
+          ? cache[id]
+          : id in state
+          ? state[id]
+          : defaultValue;
+        const previousItemValue = get(previousValue, action.key);
+        const newItemValue = mapper(previousItemValue, action.payload);
+        // TODO: check changes
+        const newValue = set(previousValue, action.key, newItemValue);
+        cache[id] = newValue;
+        if (!isCacheExist && previousValue !== newValue) {
+          changedIds.push([id, action.key, get]);
+        }
+      };
+      if (!(actionType in depsHandlersList)) {
+        depsHandlersList[actionType] = new Set();
+      }
+      depsHandlersList[actionType].add(handler);
 
       return builder;
     },
