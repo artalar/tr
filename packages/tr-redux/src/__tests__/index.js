@@ -2,6 +2,18 @@ import { createReducer, createStore } from '..';
 
 describe('tr-redux', () => {
   describe('createStore', () => {
+    it('getState', () => {
+      const child = createReducer(true).done();
+      const root = createReducer()
+        .compute({ child })
+        .done();
+
+      const store = createStore(root);
+
+      expect(store.getState(child)).toBe(true);
+      expect(store.getState(root)).toEqual({ child: true });
+      expect(store.getState()).toEqual({ child: true });
+    });
     it('dispatch', () => {
       const change = 'CHANGE';
 

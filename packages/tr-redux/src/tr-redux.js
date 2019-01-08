@@ -127,5 +127,9 @@ export function createStore(reducer, preloadedState, enhancer) {
     };
   };
 
+  store.getState = function getState(target = reducer) {
+    return context.state[getId(target)];
+  };
+
   return store;
 }
