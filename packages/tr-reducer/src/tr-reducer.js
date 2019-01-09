@@ -61,7 +61,11 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
     [ID]: id,
     [DEPS_HANDLERS_LIST]: depsHandlersList,
     [GETTER]: get,
-    on(actionType, mapper) {
+    on(...args) {
+      const actionType = args.shift();
+      const mapper = args.pop();
+      const deps = args;
+
       if (isDone) {
         throw new OwnError(
           'Reducer is "done" - dependencies locked and can not be changed',
@@ -73,6 +77,16 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
       if (typeof mapper !== 'function') {
         throw new OwnError('The mapper is must be a function');
       }
+      for (let i = 0; i < deps.length; i++) {
+        if (!deps[i][ID]) {
+          throw new OwnError(
+            'Computed dependencies can be only the others reducers',
+          );
+        }
+        if (!deps[i][IS_DONE]) {
+          throw new OwnError(`Dependency №${i + 1} is not "done"`);
+        }
+      }
 
       const handler = ({ cache, state, changedIds }, action) => {
         const isCacheExist = id in cache;
@@ -82,7 +96,13 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
           : id in state
           ? state[id]
           : defaultValue;
-        const newValue = mapper(previousValue, action.payload);
+        const newValue = mapper(
+          previousValue,
+          action.payload,
+          ...deps.map(({ [ID]: depId }) =>
+            depId in cache ? cache[depId] : state[depId],
+          ),
+        );
         cache[id] = newValue;
         if (!isCacheExist && previousValue !== newValue) {
           changedIds.push(id);

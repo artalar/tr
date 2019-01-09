@@ -22,6 +22,37 @@ describe('Tr', () => {
       expect(() => {
         createReducer().on('', () => {});
       }).not.toThrow();
+      expect(() => {
+        createReducer().on(
+          '',
+          createReducer()
+            .on('', () => {})
+            .done(),
+          () => {},
+        );
+      }).not.toThrow();
+
+      {
+        const childReducer = createReducer(0)
+          .on('action', (state, payload) => payload + 1)
+          .done();
+        const parentReducer = createReducer({})
+          .on('action', childReducer, (state, payload, computedPayload) => ({
+            state,
+            payload,
+            computedPayload,
+          }))
+          .done();
+        expect(
+          createReducer({})
+            .compute({ childReducer, parentReducer })
+            .done()
+            .build()(createContext(), { type: 'action', payload: 1 }),
+        ).toEqual({
+          childReducer: 2,
+          parentReducer: { state: {}, payload: 1, computedPayload: 2 },
+        });
+      }
 
       expect(() => {
         createReducer().on();
@@ -33,6 +64,9 @@ describe('Tr', () => {
 
       expect(() => {
         createReducer().on(undefined, () => {});
+      }).toThrow();
+      expect(() => {
+        createReducer().on('', createReducer().on('', () => {}), () => {});
       }).toThrow();
     });
 
@@ -155,6 +189,7 @@ describe('Tr', () => {
       .on(COUNT, (state, v) => state + v)
       .done();
 
+    // eslint-disable-next-line
     test(
       createReducer()
         .compute({
@@ -165,6 +200,7 @@ describe('Tr', () => {
         .done(),
     );
 
+    // eslint-disable-next-line
     test(
       createReducer()
         .compute(
