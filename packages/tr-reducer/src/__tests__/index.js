@@ -238,6 +238,7 @@ describe('Tr', () => {
       expect(context.changedIds).toEqual([{ id: listReducerId, key: 0 }]);
       expect(getGetter(list)(context.cache[listReducerId], 0)).toEqual(1.1);
     });
+
     it('custom lens', () => {
       const fillList = 'FILL_LIST';
       const changeItem = 'CHANGE_ITEM';
@@ -269,6 +270,53 @@ describe('Tr', () => {
       );
       expect(context.changedIds).toEqual([{ id: listReducerId, key: 1 }]);
       expect(getGetter(list)(context.cache[listReducerId], 1)).toEqual(1.1);
+    });
+
+    it('glitch free', () => {
+      const testAction = 'testAction';
+      const oneMap = jest.fn(() => 1);
+      const twoMap = jest.fn(() => 2);
+      const shape1Map = jest.fn((state, one, two) => ({ one, two }));
+      const shape2FirstComputeArgMap = jest.fn((state, v) => v.one);
+      const shape2SecondComputeArgMap = jest.fn((state, v) => v.two);
+      const shape2Map = jest.fn((state, one, two) => ({ one, two }));
+
+      const one = createReducer()
+        .on(testAction, oneMap)
+        .done();
+      const two = createReducer()
+        .on(testAction, twoMap)
+        .done();
+
+      const shape1 = createReducer({})
+        .compute(one, two, shape1Map)
+        .done();
+
+      const shape2 = createReducer({})
+        .compute(
+          createReducer()
+            .compute(shape1, shape2FirstComputeArgMap)
+            .done(),
+          createReducer()
+            .compute(shape1, shape2SecondComputeArgMap)
+            .done(),
+          shape2Map,
+        )
+        .done();
+
+      const reducer = shape2.build();
+
+      const context = createContext();
+      expect(reducer(context, { type: testAction })).toEqual({
+        one: 1,
+        two: 2,
+      });
+      expect(oneMap.mock.calls.length).toBe(1);
+      expect(twoMap.mock.calls.length).toBe(1);
+      expect(shape1Map.mock.calls.length).toBe(1);
+      expect(shape2FirstComputeArgMap.mock.calls.length).toBe(1);
+      expect(shape2SecondComputeArgMap.mock.calls.length).toBe(1);
+      expect(shape2Map.mock.calls.length).toBe(1);
     });
   });
 });
