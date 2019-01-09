@@ -9,6 +9,7 @@ mock redux store for reactive magic
 ### Problems
 
 - Selectors are not inspectable (i mean reducers results may inspect in devtools). (It is the common reason for me)
+- Selectors execute at render - error in selector will break render (computed properties must separeted from view)
 - Separation of model - to reducers and selectors
 - Selectors must know about all parents - path to the root. It hard for modular architecture
 - Difficult static type inference
