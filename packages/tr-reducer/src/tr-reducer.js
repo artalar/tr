@@ -1,76 +1,87 @@
 /**
  * TODO: error descriptions
  */
+const prefix = '@@tr';
+
+let count = 0;
+const random = () =>
+  Math.random()
+    .toString(36)
+    .substring(7);
 
 const _Symbol =
-  typeof Symbol !== 'undefined'
-    ? Symbol
-    : name =>
-        name +
-        Math.random()
-          .toString(36)
-          .substring(7)
-          .split('')
-          .join('.');
+  typeof Symbol === 'undefined'
+    ? description => description + random()
+    : Symbol;
 
-function generateUid(name) {
-  return _Symbol(name);
+const createInternalId = name => _Symbol(`${prefix}/${name}`);
+
+function createId(description) {
+  return `${prefix}__${description}__[${++count}]${random()}`;
 }
 
 const isValidState = state =>
   Boolean(state && state.flat !== null && typeof state.flat === 'object');
 const isValidAction = action => Boolean(action && action.type);
 
-const ID = generateUid('@@tr/createReducer/ID');
-const DEPS_HANDLERS_LIST = generateUid('@@tr/createReducer/DEPS_HANDLERS_LIST');
-const IS_DONE = generateUid('@@tr/createReducer/IS_DONE');
-const GETTER = generateUid('@@tr/createReducer/GETTER');
+const ID = createInternalId('reducer/ID');
+const HANDLERS_BY_DEPS = createInternalId('reducer/HANDLERS_BY_DEPS');
+const IS_NO_CHANGES = createInternalId('reducer/IS_NO_CHANGES');
+const CHANGES_LIST = createInternalId('reducer/CHANGES_LIST');
 
 function noop() {}
 
 class OwnError extends Error {
   constructor(msg = '') {
-    super(`@@tg-reducer/${msg}`);
+    super(`${prefix}/${msg}`);
   }
 }
 
-const defaultLense = {
-  get: (state, itemId) => state[itemId],
-  set: (state, itemId, value) => {
-    const newState = Array.isArray(state) ? state.slice(0) : { ...state };
-    newState[itemId] = value;
-    return newState;
-  },
-};
-
-export function getId(reducer) {
+/**
+ * @param {Function} reducer builded from collection
+ * @returns {*} id of reducer
+ */
+export function __getId(reducer) {
   return reducer[ID];
 }
 
-export function getGetter(reducer) {
-  return reducer[GETTER];
+/**
+ * Clarify what exactly changed in state (useful for array and collections)
+ * Skip arguments if you do not change anything
+ * @param {*} newValue of state
+ * @param {Array} changes - array of changed keys
+ */
+export function tellChanges(newValue, changes = []) {
+  return {
+    newValue,
+    [IS_NO_CHANGES]: arguments.length === 0,
+    [CHANGES_LIST]: changes,
+  };
 }
 
-export function createReducer(defaultValue, { get, set } = defaultLense) {
-  const id = generateUid('@@tr/createReducer/id');
-  // "dep*" - dependency
-  const handlersByDependency = Object.create(null);
-  let isDone = false;
+/**
+ * Create new collection for handling action types and other collections
+ * @param {*} defaultValue
+ * @param {string} description
+ */
+export function createCollection(defaultValue, description = '') {
+  const id = createId(description);
+  // "dep*" - shortcut for "dependency"
+  const handlersByDeps = Object.create(null);
 
-  const builder = {
+  const collector = {
     [ID]: id,
-    [DEPS_HANDLERS_LIST]: handlersByDependency,
-    [GETTER]: get,
+    /**
+     * Add handler to action, optionally produce values from other collections (but not react by them)
+     * @param {string} actionType
+     * @param {...dependedCollection} dependencies
+     * @param {(state, actionPayload, ...dependenciesValues) => newState} mapper
+     * @returns {collection}
+     */
     on(...args) {
       const actionType = args.shift();
       const mapper = args.pop();
       const deps = args;
-
-      if (isDone) {
-        throw new OwnError(
-          'Reducer is "done" - dependencies locked and can not be changed',
-        );
-      }
       if (typeof actionType !== 'string') {
         throw new OwnError('The action type is must be a string');
       }
@@ -78,67 +89,70 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
         throw new OwnError('The mapper is must be a function');
       }
       for (let i = 0; i < deps.length; i++) {
-        if (!deps[i][ID]) {
+        if (!deps[i][HANDLERS_BY_DEPS]) {
           throw new OwnError(
-            'Computed dependencies can be only the others reducers',
+            'Dependencies can be computed only from others done "tr" reducers. ' +
+              `Dependency №${i + 1} is not valid`,
           );
-        }
-        if (!deps[i][IS_DONE]) {
-          throw new OwnError(`Dependency №${i + 1} is not "done"`);
         }
       }
 
       const handler = ({ flatNew, flatOld, changes }, action) => {
-        const isCacheExist = id in flatNew;
-        let isFirstHandle = false;
-        let previousValue;
-        if (isCacheExist) {
-          previousValue = flatNew[id];
-        } else if (id in flatOld) {
-          previousValue = flatOld[id];
-        } else {
-          previousValue = defaultValue;
-          isFirstHandle = true;
-        }
-
-        const newValue = mapper(
-          previousValue,
+        const result = mapper(
+          // eslint-disable-next-line
+          id in flatNew
+            ? flatNew[id]
+            : id in flatOld
+            ? flatOld[id]
+            : defaultValue,
           action.payload,
           ...deps.map(({ [ID]: depId }) =>
             depId in flatNew ? flatNew[depId] : flatOld[depId],
           ),
         );
 
-        flatNew[id] = newValue;
+        if (result && result[CHANGES_LIST]) {
+          if (result[IS_NO_CHANGES]) return;
 
-        if ((!isCacheExist && previousValue !== newValue) || isFirstHandle) {
-          changes.push(id);
+          flatNew[id] = result.newValue;
+          (changes[id] || (changes[id] = [])).push(...result[CHANGES_LIST]);
+        } else {
+          const newValue = result;
+          flatNew[id] = newValue;
+          if (!(id in changes)) changes[id] = [];
         }
       };
-      if (!(actionType in handlersByDependency)) {
-        handlersByDependency[actionType] = new Set();
+      if (!(actionType in handlersByDeps)) {
+        handlersByDeps[actionType] = new Set();
       }
-      handlersByDependency[actionType].add(handler);
+      handlersByDeps[actionType].add(handler);
 
-      return builder;
+      return collector;
     },
+    /**
+     * Add handler to other collections
+     * @param {...dependedCollection} dependencies
+     * @param {(state, ...dependenciesValues) => newState} mapper
+     * @returns {collection}
+     */
     compute(...args) {
-      if (isDone) {
-        throw new OwnError(
-          'Reducer is "done" - dependencies locked and can not be changed',
-        );
-      }
       let mapper = args.pop();
       const deps = args;
-      const dependedActionTypesList = [];
 
       if (deps.length === 0) {
         if (typeof mapper === 'object' && mapper !== null) {
           const shape = mapper;
           const keys = Object.keys(shape);
+
+          if (keys.length === 0) {
+            throw new OwnError('Dependencies not passed');
+          }
+
           for (let i = 0; i < keys.length; i++) {
             deps.push(shape[keys[i]]);
           }
+
+          // TODO: add option for modification mapper
           mapper = (state, ...values) =>
             values.reduce((acc, v, i) => ((acc[keys[i]] = v), acc), {});
         } else {
@@ -146,184 +160,136 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
         }
       }
       if (typeof mapper !== 'function') {
-        throw new OwnError('Expected the mapper is must be a function');
+        throw new OwnError('The mapper is must be a function');
       }
+
       for (let i = 0; i < deps.length; i++) {
-        if (!deps[i][ID]) {
+        if (!deps[i][HANDLERS_BY_DEPS]) {
           throw new OwnError(
-            'Computed dependencies can be only the others reducers',
-          );
-        }
-        if (!deps[i][IS_DONE]) {
-          throw new OwnError(`Dependency №${i + 1} is not "done"`);
-        }
-      }
-
-      for (let i = 0; i < deps.length; i++) {
-        const depDepsHandlers = deps[i][DEPS_HANDLERS_LIST];
-        // eslint-disable-next-line
-        for (const depActionType in depDepsHandlers) {
-          if (dependedActionTypesList.indexOf(depActionType) === -1) {
-            dependedActionTypesList.push(depActionType);
-          }
-
-          if (!(depActionType in handlersByDependency)) {
-            handlersByDependency[depActionType] = new Set();
-          }
-          depDepsHandlers[depActionType].forEach(handler =>
-            handlersByDependency[depActionType].add(handler),
+            'Dependencies can be computed only from others done "tr" reducers. ' +
+              `Dependency №${i + 1} is not valid`,
           );
         }
       }
 
-      for (let i = 0; i < dependedActionTypesList.length; i++) {
-        handlersByDependency[dependedActionTypesList[i]].add(
+      const depsActionTypeList = [];
+
+      for (let depIndex = 0; depIndex < deps.length; depIndex++) {
+        const depHandlersByDeps = deps[depIndex][HANDLERS_BY_DEPS];
+        const depHandlersByDepsKeys = Object.keys(depHandlersByDeps);
+        for (let i = 0; i < depHandlersByDepsKeys.length; i++) {
+          const depActionType = depHandlersByDepsKeys[i];
+          if (depsActionTypeList.indexOf(depActionType) === -1) {
+            depsActionTypeList.push(depActionType);
+          }
+
+          const handlersByDep =
+            handlersByDeps[depActionType] ||
+            (handlersByDeps[depActionType] = new Set());
+          depHandlersByDeps[depActionType].forEach(handler =>
+            handlersByDep.add(handler),
+          );
+        }
+      }
+
+      for (let i = 0; i < depsActionTypeList.length; i++) {
+        handlersByDeps[depsActionTypeList[i]].add(
           ({ flatNew, flatOld, changes }) => {
-            const isCacheExist = id in flatNew;
-            let isFirstHandle = false;
-            let previousValue;
-            if (isCacheExist) {
-              previousValue = flatNew[id];
-            } else if (id in flatOld) {
-              previousValue = flatOld[id];
-            } else {
-              previousValue = defaultValue;
-              isFirstHandle = true;
-            }
-
-            const newValue = mapper(
-              previousValue,
+            const result = mapper(
+              // eslint-disable-next-line
+              id in flatNew
+                ? flatNew[id]
+                : id in flatOld
+                ? flatOld[id]
+                : defaultValue,
               ...deps.map(({ [ID]: depId }) =>
                 depId in flatNew ? flatNew[depId] : flatOld[depId],
               ),
             );
 
-            flatNew[id] = newValue;
+            if (result && result[CHANGES_LIST]) {
+              if (result[IS_NO_CHANGES]) return;
 
-            if (
-              (!isCacheExist && previousValue !== newValue) ||
-              isFirstHandle
-            ) {
-              changes.push(id);
+              flatNew[id] = result.newValue;
+              (changes[id] || (changes[id] = [])).push(...result[CHANGES_LIST]);
+            } else {
+              const newValue = result;
+              flatNew[id] = newValue;
+              // existed array show that state was changed
+              if (!(id in changes)) changes[id] = [];
             }
           },
         );
       }
 
-      return builder;
+      return collector;
     },
-    lens(actionType, mapper) {
-      if (isDone) {
-        throw new OwnError(
-          'Reducer is "done" - dependencies locked and can not be changed',
-        );
-      }
-      if (typeof actionType !== 'string') {
-        throw new OwnError('The action type is must be a string');
-      }
-      if (typeof mapper !== 'function') {
-        throw new OwnError('The mapper is must be a function');
-      }
-
-      const handler = ({ flatNew, flatOld, changes }, action) => {
-        const { key, payload } = action;
-
-        if (!('key' in action)) {
-          throw new OwnError(
-            'Can not use "lense" handler without the key of item',
-          );
-        }
-
-        const isCacheExist = id in flatNew;
-        let isFirstHandle = false;
-        let previousValue;
-        if (isCacheExist) {
-          previousValue = flatNew[id];
-        } else if (id in flatOld) {
-          previousValue = flatOld[id];
-        } else {
-          previousValue = defaultValue;
-          isFirstHandle = true;
-        }
-
-        const previousItemValue = get(previousValue, key);
-        const newItemValue = mapper(previousItemValue, payload);
-        // TODO: check changes
-        const newValue = set(previousValue, key, newItemValue);
-
-        flatNew[id] = newValue;
-        if ((!isCacheExist && previousValue !== newValue) || isFirstHandle) {
-          changes.push({ id, key });
-        }
-      };
-      if (!(actionType in handlersByDependency)) {
-        handlersByDependency[actionType] = new Set();
-      }
-      handlersByDependency[actionType].add(handler);
-
-      return builder;
-    },
+    /**
+     * End collection filling (needed for prevent recursive dependencies)
+     * @returns {builder}
+     */
     done() {
-      isDone = true;
-      builder[IS_DONE] = isDone;
+      return {
+        [ID]: id,
+        [HANDLERS_BY_DEPS]: handlersByDeps,
+        /**
+         * Build handlers for each dependency (action type)
+         * @returns {({ flat: Object, root: state, changes: Object }, { type: string, payload: any }) => newState)} reducer
+         */
+        build(
+          mergeChanges = (flatOld, flatNew) =>
+            Object.assign(Object.create(null), flatOld, flatNew),
+        ) {
+          const handlerComputedByDependency = Object.create(null);
+          const depDepsHandlersKeys = Object.keys(handlersByDeps);
+          for (let i = 0; i < depDepsHandlersKeys.length; i++) {
+            const actionType = depDepsHandlersKeys[i];
+            let resultHandler = noop;
+            handlersByDeps[actionType].forEach(handler => {
+              const previousHandler = resultHandler;
+              resultHandler = (context, action) => {
+                previousHandler(context, action);
+                handler(context, action);
+              };
+            });
+            handlerComputedByDependency[actionType] = resultHandler;
+          }
 
-      return builder;
-    },
-    build() {
-      if (!isDone) {
-        throw new OwnError(
-          'Reducer is not "done" - dependencies steel open to changes',
-        );
-      }
-      const handlerComputedByDependency = Object.create(null);
-      // eslint-disable-next-line
-      for (const actionType in handlersByDependency) {
-        let resultHandler = noop;
-        handlersByDependency[actionType].forEach(handler => {
-          const previousHandler = resultHandler;
-          resultHandler = (context, action) => {
-            previousHandler(context, action);
-            handler(context, action);
-          };
-        });
-        handlerComputedByDependency[actionType] = resultHandler;
-      }
+          function reducer(
+            state = {
+              flat: Object.create(null),
+              root: defaultValue,
+              changes: Object.create(null),
+            },
+            action,
+          ) {
+            if (!isValidState(state)) throw new OwnError('Invalid state');
+            if (!isValidAction(action)) throw new OwnError('Invalid action');
+            if (action.type in handlerComputedByDependency) {
+              const context = {
+                flatOld: state.flat,
+                flatNew: Object.create(null),
+                changes: Object.create(null),
+              };
 
-      function reducer(
-        state = {
-          flat: Object.create(null),
-          root: defaultValue,
-          changes: [],
-        },
-        action,
-      ) {
-        if (!isValidState(state)) throw new OwnError('Invalid state');
-        if (!isValidAction(action)) throw new OwnError('Invalid action');
-        if (action.type in handlerComputedByDependency) {
-          const context = {
-            flatOld: state.flat,
-            flatNew: Object.create(null),
-            changes: [],
-          };
-          handlerComputedByDependency[action.type](context, action);
-          if (context.changes.length === 0) {
+              handlerComputedByDependency[action.type](context, action);
+
+              const flat = mergeChanges(state.flat, context.flatNew);
+
+              return {
+                flat,
+                root: flat[id],
+                changes: context.changes,
+              };
+            }
             return state;
           }
-          return {
-            flat: { ...state.flat, ...context.flatNew },
-            root: context.flatNew[id],
-            changes: context.changes,
-          };
-        }
-        return state;
-      }
 
-      reducer[ID] = id;
-      reducer[GETTER] = get;
-
-      return reducer;
+          return reducer;
+        },
+      };
     },
   };
 
-  return builder;
+  return collector;
 }

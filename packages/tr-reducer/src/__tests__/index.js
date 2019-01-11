@@ -1,25 +1,25 @@
-import { createReducer, getId, getGetter } from '..';
+import { createCollection, tellChanges, __getId } from '..';
 
 describe('Tr', () => {
   describe('API', () => {
-    it('create', () => {
+    it('"create"', () => {
       expect(() => {
-        createReducer();
+        createCollection();
       }).not.toThrow();
 
       expect(() => {
-        createReducer('default value');
+        createCollection('default value');
       }).not.toThrow();
     });
 
     it('"on"', () => {
       expect(() => {
-        createReducer().on('', () => {});
+        createCollection().on('', () => {});
       }).not.toThrow();
       expect(() => {
-        createReducer().on(
+        createCollection().on(
           '',
-          createReducer()
+          createCollection()
             .on('', () => {})
             .done(),
           () => {},
@@ -27,117 +27,89 @@ describe('Tr', () => {
       }).not.toThrow();
 
       {
-        const childReducer = createReducer(0)
+        const childCollection = createCollection(0)
           .on('action', (state, payload) => payload + 1)
           .done();
-        const parentReducer = createReducer({})
-          .on('action', childReducer, (state, payload, computedPayload) => ({
+        const parentCollection = createCollection({})
+          .on('action', childCollection, (state, payload, computedPayload) => ({
             state,
             payload,
             computedPayload,
           }))
           .done();
+        const rootCollection = createCollection({})
+          .compute({ childCollection, parentCollection })
+          .done();
         expect(
-          createReducer({})
-            .compute({ childReducer, parentReducer })
-            .done()
-            .build()(undefined, { type: 'action', payload: 1 }),
+          rootCollection.build()(undefined, { type: 'action', payload: 1 }),
         ).toEqual({
-          flat: expect.any(Object),
-          root: {
-            childReducer: 2,
-            parentReducer: { state: {}, payload: 1, computedPayload: 2 },
+          flat: {
+            [__getId(childCollection)]: 2,
+            [__getId(parentCollection)]: {
+              state: {},
+              payload: 1,
+              computedPayload: 2,
+            },
+            [__getId(rootCollection)]: {
+              childCollection: 2,
+              parentCollection: { state: {}, payload: 1, computedPayload: 2 },
+            },
           },
-          changes: expect.any(Array),
+          root: {
+            childCollection: 2,
+            parentCollection: { state: {}, payload: 1, computedPayload: 2 },
+          },
+          changes: {
+            [__getId(childCollection)]: [],
+            [__getId(parentCollection)]: [],
+            [__getId(rootCollection)]: [],
+          },
         });
       }
 
       expect(() => {
-        createReducer().on();
+        createCollection().on();
       }).toThrow();
 
       expect(() => {
-        createReducer().on('');
+        createCollection().on('');
       }).toThrow();
 
       expect(() => {
-        createReducer().on(undefined, () => {});
+        createCollection().on(undefined, () => {});
       }).toThrow();
       expect(() => {
-        createReducer().on('', createReducer().on('', () => {}), () => {});
-      }).toThrow();
-    });
-
-    it('"lens"', () => {
-      expect(() => {
-        createReducer().lens('', () => {});
-      }).not.toThrow();
-
-      expect(() => {
-        createReducer().lens('', () => {}, { set() {}, get() {} });
-      }).not.toThrow();
-
-      expect(() =>
-        createReducer([0])
-          .lens('string', (s, v) => v)
-          .done()
-          .build()(undefined, { type: 'string', key: 0, payload: 1 }),
-      ).not.toThrow();
-
-      expect(
-        createReducer([0])
-          .lens('string', (s, v) => v)
-          .done()
-          .build()(undefined, { type: 'string', key: 0, payload: 1 }),
-      ).toEqual({
-        flat: expect.any(Object),
-        root: [1],
-        changes: expect.any(Array),
-      });
-
-      expect(() => {
-        createReducer().lens();
-      }).toThrow();
-
-      expect(() => {
-        createReducer().lens('');
-      }).toThrow();
-
-      expect(() => {
-        createReducer().lens(undefined, () => {});
-      }).toThrow();
-
-      expect(() => {
-        createReducer([0])
-          .lens('string', (s, v) => v)
-          .done()
-          .build()(undefined, { type: 'string', payload: 1 });
+        createCollection().on(
+          '',
+          createCollection().on('', () => {}),
+          () => {},
+        );
       }).toThrow();
     });
 
     it('"compute", "done"', () => {
       expect(() => {
-        createReducer().compute({ props: createReducer().done() });
+        createCollection().compute({ props: createCollection().done() });
       }).not.toThrow();
 
       expect(() => {
-        createReducer().compute(createReducer().done(), () => {});
+        createCollection().compute(createCollection().done(), () => {});
       }).not.toThrow();
 
       expect(() => {
-        createReducer().compute(
-          createReducer().done(),
-          createReducer().done(),
-          createReducer().done(),
+        createCollection().compute(
+          createCollection().done(),
+          createCollection().done(),
+          createCollection().done(),
           () => {},
         );
       }).not.toThrow();
 
       expect(
-        createReducer({})
+        createCollection({})
           .on('INIT', state => state)
           .compute({
-            child: createReducer(true)
+            child: createCollection(true)
               .on('INIT', (state = true) => state)
               .done(),
           })
@@ -146,12 +118,12 @@ describe('Tr', () => {
       ).toEqual({ child: true });
 
       expect(() => {
-        createReducer().compute(createReducer(), () => {});
+        createCollection().compute(createCollection(), () => {});
       }).toThrow();
 
       expect(() => {
-        createReducer().compute(
-          createReducer()
+        createCollection().compute(
+          createCollection()
             .done()
             .build(),
           () => {},
@@ -159,30 +131,30 @@ describe('Tr', () => {
       }).toThrow();
 
       expect(() => {
-        createReducer().compute(() => {});
+        createCollection().compute(() => {});
       }).toThrow();
 
       expect(() => {
-        createReducer().compute(createReducer());
+        createCollection().compute(createCollection());
       }).toThrow();
     });
 
     it('"build"', () => {
       expect(() => {
-        createReducer()
+        createCollection()
           .on('', () => {})
           .done()
           .build();
       }).not.toThrow();
 
       expect(() => {
-        createReducer()
+        createCollection()
           .on('', () => {})
           .build();
       }).toThrow();
 
       expect(() => {
-        createReducer().build();
+        createCollection().build();
       }).toThrow();
     });
   });
@@ -191,22 +163,22 @@ describe('Tr', () => {
     const INITIAL = 'INITIAL';
     const COUNT = 'COUNT';
 
-    const counter1 = createReducer()
+    const counter1 = createCollection()
       .on(INITIAL, () => 0)
       .done();
 
-    const counter2 = createReducer()
+    const counter2 = createCollection()
       .on(INITIAL, () => 0)
       .on(COUNT, (state, v) => state + v)
       .done();
 
-    const counter3 = createReducer(1)
+    const counter3 = createCollection(1)
       .on(COUNT, (state, v) => state + v)
       .done();
 
     // eslint-disable-next-line
     test(
-      createReducer()
+      createCollection()
         .compute({
           count1: counter1,
           count2: counter2,
@@ -217,7 +189,7 @@ describe('Tr', () => {
 
     // eslint-disable-next-line
     test(
-      createReducer()
+      createCollection()
         .compute(
           counter1,
           counter2,
@@ -233,25 +205,25 @@ describe('Tr', () => {
     );
 
     function test(counters) {
-      const countersReducer = counters.build();
+      const countersCollection = counters.build();
 
       let state;
 
-      state = countersReducer(state, { type: INITIAL });
+      state = countersCollection(state, { type: INITIAL });
       expect(state.root).toEqual({
         count1: 0,
         count2: 0,
         count3: undefined,
       });
 
-      state = countersReducer(state, { type: COUNT, payload: 1 });
+      state = countersCollection(state, { type: COUNT, payload: 1 });
       expect(state.root).toEqual({
         count1: 0,
         count2: 1,
         count3: 2,
       });
 
-      state = countersReducer(state, { type: COUNT, payload: 1 });
+      state = countersCollection(state, { type: COUNT, payload: 1 });
       expect(state.root).toEqual({
         count1: 0,
         count2: 2,
@@ -260,104 +232,85 @@ describe('Tr', () => {
     }
   });
 
-  describe('lens', () => {
-    it('default lens', () => {
-      const fillList = 'FILL_LIST';
-      const changeItem = 'CHANGE_ITEM';
+  it('tellChanges', () => {
+    const fillList = 'FILL_LIST';
+    const changeItem = 'CHANGE_ITEM';
+    const changeItemSkip = 'CHANGE_ITEM_SKIP';
 
-      const list = createReducer([])
-        .on(fillList, (state, payload) => payload)
-        .lens(changeItem, (itemState, payload) => payload)
-        .done();
-      const listReducerId = getId(list);
+    const list = createCollection([])
+      .on(fillList, (state, payload) => payload)
+      .on(changeItem, (state, { value, index }) =>
+        tellChanges(state.map((v, i) => (i === index ? value : v)), [index]),
+      )
+      .on(changeItemSkip, () => tellChanges())
+      .done();
+    const listCollectionId = __getId(list);
 
-      const reducer = list.build();
+    const reducer = list.build();
 
-      let state;
+    let state;
 
-      state = reducer(state, { type: fillList, payload: [1, 2, 3] });
-      expect(state.flat[listReducerId]).toEqual([1, 2, 3]);
+    state = reducer(state, { type: fillList, payload: [1, 2, 3] });
+    expect(state.root).toEqual([1, 2, 3]);
 
-      state = reducer(state, { type: changeItem, key: 0, payload: 1.1 });
-      expect(state.flat[listReducerId]).toEqual([1.1, 2, 3]);
-      expect(state.changes).toEqual([{ id: listReducerId, key: 0 }]);
-      expect(getGetter(list)(state.flat[listReducerId], 0)).toEqual(1.1);
+    state = reducer(state, {
+      type: changeItem,
+      payload: { value: 1.1, index: 0 },
     });
+    expect(state.root).toEqual([1.1, 2, 3]);
+    expect(state.changes[listCollectionId]).toEqual([0]);
 
-    it('custom lens', () => {
-      const fillList = 'FILL_LIST';
-      const changeItem = 'CHANGE_ITEM';
-
-      const list = createReducer(new Map(), {
-        get: (state, key) => state.get(key),
-        set: (state, key, payload) => new Map(state).set(key, payload),
-      })
-        .on(fillList, (state, payload) => payload)
-        .lens(changeItem, (itemState, payload) => payload)
-        .done();
-      const listReducerId = getId(list);
-
-      const reducer = list.build();
-
-      let state;
-
-      const newList = new Map([[1, 1], [2, 2], [3, 3]]);
-      state = reducer(state, { type: fillList, payload: newList });
-      expect(state.flat[listReducerId]).toEqual(newList);
-      expect(state.changes).toEqual([listReducerId]);
-
-      state = reducer(state, { type: changeItem, key: 1, payload: 1.1 });
-      expect(state.flat[listReducerId]).toEqual(
-        new Map([[1, 1.1], [2, 2], [3, 3]]),
-      );
-      expect(state.changes).toEqual([{ id: listReducerId, key: 1 }]);
-      expect(getGetter(list)(state.flat[listReducerId], 1)).toEqual(1.1);
+    state = reducer(state, {
+      type: changeItemSkip,
+      payload: { value: 1.2, index: 0 },
     });
+    expect(state.root).toEqual([1.1, 2, 3]);
+    expect(state.changes[listCollectionId]).toEqual();
+  });
 
-    it('glitch free', () => {
-      const testAction = 'testAction';
-      const oneMap = jest.fn(() => 1);
-      const twoMap = jest.fn(() => 2);
-      const shape1Map = jest.fn((state, one, two) => ({ one, two }));
-      const shape2FirstComputeArgMap = jest.fn((state, v) => v.one);
-      const shape2SecondComputeArgMap = jest.fn((state, v) => v.two);
-      const shape2Map = jest.fn((state, one, two) => ({ one, two }));
+  it('glitch free', () => {
+    const testAction = 'testAction';
+    const oneMap = jest.fn(() => 1);
+    const twoMap = jest.fn(() => 2);
+    const shape1Map = jest.fn((state, one, two) => ({ one, two }));
+    const shape2FirstComputeArgMap = jest.fn((state, v) => v.one);
+    const shape2SecondComputeArgMap = jest.fn((state, v) => v.two);
+    const shape2Map = jest.fn((state, one, two) => ({ one, two }));
 
-      const one = createReducer()
-        .on(testAction, oneMap)
-        .done();
-      const two = createReducer()
-        .on(testAction, twoMap)
-        .done();
+    const one = createCollection()
+      .on(testAction, oneMap)
+      .done();
+    const two = createCollection()
+      .on(testAction, twoMap)
+      .done();
 
-      const shape1 = createReducer({})
-        .compute(one, two, shape1Map)
-        .done();
+    const shape1 = createCollection({})
+      .compute(one, two, shape1Map)
+      .done();
 
-      const shape2 = createReducer({})
-        .compute(
-          createReducer()
-            .compute(shape1, shape2FirstComputeArgMap)
-            .done(),
-          createReducer()
-            .compute(shape1, shape2SecondComputeArgMap)
-            .done(),
-          shape2Map,
-        )
-        .done();
+    const shape2 = createCollection({})
+      .compute(
+        createCollection()
+          .compute(shape1, shape2FirstComputeArgMap)
+          .done(),
+        createCollection()
+          .compute(shape1, shape2SecondComputeArgMap)
+          .done(),
+        shape2Map,
+      )
+      .done();
 
-      const reducer = shape2.build();
+    const reducer = shape2.build();
 
-      expect(reducer(undefined, { type: testAction }).root).toEqual({
-        one: 1,
-        two: 2,
-      });
-      expect(oneMap.mock.calls.length).toBe(1);
-      expect(twoMap.mock.calls.length).toBe(1);
-      expect(shape1Map.mock.calls.length).toBe(1);
-      expect(shape2FirstComputeArgMap.mock.calls.length).toBe(1);
-      expect(shape2SecondComputeArgMap.mock.calls.length).toBe(1);
-      expect(shape2Map.mock.calls.length).toBe(1);
+    expect(reducer(undefined, { type: testAction }).root).toEqual({
+      one: 1,
+      two: 2,
     });
+    expect(oneMap.mock.calls.length).toBe(1);
+    expect(twoMap.mock.calls.length).toBe(1);
+    expect(shape1Map.mock.calls.length).toBe(1);
+    expect(shape2FirstComputeArgMap.mock.calls.length).toBe(1);
+    expect(shape2SecondComputeArgMap.mock.calls.length).toBe(1);
+    expect(shape2Map.mock.calls.length).toBe(1);
   });
 });
