@@ -3,7 +3,7 @@
  */
 
 const _Symbol =
-  typeof Symbol === 'function'
+  typeof Symbol !== 'undefined'
     ? Symbol
     : name =>
         name +
@@ -17,8 +17,8 @@ function generateUid(name) {
   return _Symbol(name);
 }
 
-const isValidContext = context =>
-  Boolean(context && context.state && context.cache && context.changedIds);
+const isValidState = state =>
+  Boolean(state && state.flat !== null && typeof state.flat === 'object');
 const isValidAction = action => Boolean(action && action.type);
 
 const ID = generateUid('@@tr/createReducer/ID');
@@ -54,12 +54,12 @@ export function getGetter(reducer) {
 export function createReducer(defaultValue, { get, set } = defaultLense) {
   const id = generateUid('@@tr/createReducer/id');
   // "dep*" - dependency
-  const depsHandlersList = Object.create(null);
+  const handlersByDependency = Object.create(null);
   let isDone = false;
 
   const builder = {
     [ID]: id,
-    [DEPS_HANDLERS_LIST]: depsHandlersList,
+    [DEPS_HANDLERS_LIST]: handlersByDependency,
     [GETTER]: get,
     on(...args) {
       const actionType = args.shift();
@@ -88,30 +88,37 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
         }
       }
 
-      const handler = ({ cache, state, changedIds }, action) => {
-        const isCacheExist = id in cache;
-        // eslint-disable-next-line
-        const previousValue = isCacheExist
-          ? cache[id]
-          : id in state
-          ? state[id]
-          : defaultValue;
+      const handler = ({ flatNew, flatOld, changes }, action) => {
+        const isCacheExist = id in flatNew;
+        let isFirstHandle = false;
+        let previousValue;
+        if (isCacheExist) {
+          previousValue = flatNew[id];
+        } else if (id in flatOld) {
+          previousValue = flatOld[id];
+        } else {
+          previousValue = defaultValue;
+          isFirstHandle = true;
+        }
+
         const newValue = mapper(
           previousValue,
           action.payload,
           ...deps.map(({ [ID]: depId }) =>
-            depId in cache ? cache[depId] : state[depId],
+            depId in flatNew ? flatNew[depId] : flatOld[depId],
           ),
         );
-        cache[id] = newValue;
-        if (!isCacheExist && previousValue !== newValue) {
-          changedIds.push(id);
+
+        flatNew[id] = newValue;
+
+        if ((!isCacheExist && previousValue !== newValue) || isFirstHandle) {
+          changes.push(id);
         }
       };
-      if (!(actionType in depsHandlersList)) {
-        depsHandlersList[actionType] = new Set();
+      if (!(actionType in handlersByDependency)) {
+        handlersByDependency[actionType] = new Set();
       }
-      depsHandlersList[actionType].add(handler);
+      handlersByDependency[actionType].add(handler);
 
       return builder;
     },
@@ -160,34 +167,44 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
             dependedActionTypesList.push(depActionType);
           }
 
-          if (!(depActionType in depsHandlersList)) {
-            depsHandlersList[depActionType] = new Set();
+          if (!(depActionType in handlersByDependency)) {
+            handlersByDependency[depActionType] = new Set();
           }
           depDepsHandlers[depActionType].forEach(handler =>
-            depsHandlersList[depActionType].add(handler),
+            handlersByDependency[depActionType].add(handler),
           );
         }
       }
 
       for (let i = 0; i < dependedActionTypesList.length; i++) {
-        depsHandlersList[dependedActionTypesList[i]].add(
-          ({ cache, state, changedIds }) => {
-            const isCacheExist = id in cache;
-            // eslint-disable-next-line
-            const previousValue = isCacheExist
-              ? cache[id]
-              : id in state
-              ? state[id]
-              : defaultValue;
+        handlersByDependency[dependedActionTypesList[i]].add(
+          ({ flatNew, flatOld, changes }) => {
+            const isCacheExist = id in flatNew;
+            let isFirstHandle = false;
+            let previousValue;
+            if (isCacheExist) {
+              previousValue = flatNew[id];
+            } else if (id in flatOld) {
+              previousValue = flatOld[id];
+            } else {
+              previousValue = defaultValue;
+              isFirstHandle = true;
+            }
+
             const newValue = mapper(
               previousValue,
               ...deps.map(({ [ID]: depId }) =>
-                depId in cache ? cache[depId] : state[depId],
+                depId in flatNew ? flatNew[depId] : flatOld[depId],
               ),
             );
-            cache[id] = newValue;
-            if (!isCacheExist && previousValue !== newValue) {
-              changedIds.push(id);
+
+            flatNew[id] = newValue;
+
+            if (
+              (!isCacheExist && previousValue !== newValue) ||
+              isFirstHandle
+            ) {
+              changes.push(id);
             }
           },
         );
@@ -208,33 +225,41 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
         throw new OwnError('The mapper is must be a function');
       }
 
-      const handler = ({ cache, state, changedIds }, action) => {
+      const handler = ({ flatNew, flatOld, changes }, action) => {
         const { key, payload } = action;
+
         if (!('key' in action)) {
           throw new OwnError(
             'Can not use "lense" handler without the key of item',
           );
         }
-        const isCacheExist = id in cache;
-        // eslint-disable-next-line
-        const previousValue = isCacheExist
-          ? cache[id]
-          : id in state
-          ? state[id]
-          : defaultValue;
+
+        const isCacheExist = id in flatNew;
+        let isFirstHandle = false;
+        let previousValue;
+        if (isCacheExist) {
+          previousValue = flatNew[id];
+        } else if (id in flatOld) {
+          previousValue = flatOld[id];
+        } else {
+          previousValue = defaultValue;
+          isFirstHandle = true;
+        }
+
         const previousItemValue = get(previousValue, key);
         const newItemValue = mapper(previousItemValue, payload);
         // TODO: check changes
         const newValue = set(previousValue, key, newItemValue);
-        cache[id] = newValue;
-        if (!isCacheExist && previousValue !== newValue) {
-          changedIds.push({ id, key });
+
+        flatNew[id] = newValue;
+        if ((!isCacheExist && previousValue !== newValue) || isFirstHandle) {
+          changes.push({ id, key });
         }
       };
-      if (!(actionType in depsHandlersList)) {
-        depsHandlersList[actionType] = new Set();
+      if (!(actionType in handlersByDependency)) {
+        handlersByDependency[actionType] = new Set();
       }
-      depsHandlersList[actionType].add(handler);
+      handlersByDependency[actionType].add(handler);
 
       return builder;
     },
@@ -250,29 +275,53 @@ export function createReducer(defaultValue, { get, set } = defaultLense) {
           'Reducer is not "done" - dependencies steel open to changes',
         );
       }
-      const depsHandlers = Object.create(null);
+      const handlerComputedByDependency = Object.create(null);
       // eslint-disable-next-line
-      for (const actionType in depsHandlersList) {
+      for (const actionType in handlersByDependency) {
         let resultHandler = noop;
-        depsHandlersList[actionType].forEach(handler => {
+        handlersByDependency[actionType].forEach(handler => {
           const previousHandler = resultHandler;
           resultHandler = (context, action) => {
             previousHandler(context, action);
             handler(context, action);
           };
         });
-        depsHandlers[actionType] = resultHandler;
+        handlerComputedByDependency[actionType] = resultHandler;
       }
 
-      return function reducer(context, action) {
-        if (!isValidContext(context)) throw new OwnError('Invalid context');
+      function reducer(
+        state = {
+          flat: Object.create(null),
+          root: defaultValue,
+          changes: [],
+        },
+        action,
+      ) {
+        if (!isValidState(state)) throw new OwnError('Invalid state');
         if (!isValidAction(action)) throw new OwnError('Invalid action');
-        if (action.type in depsHandlers) {
-          depsHandlers[action.type](context, action);
-          return context.cache[id];
+        if (action.type in handlerComputedByDependency) {
+          const context = {
+            flatOld: state.flat,
+            flatNew: Object.create(null),
+            changes: [],
+          };
+          handlerComputedByDependency[action.type](context, action);
+          if (context.changes.length === 0) {
+            return state;
+          }
+          return {
+            flat: { ...state.flat, ...context.flatNew },
+            root: context.flatNew[id],
+            changes: context.changes,
+          };
         }
-        return context.state[id];
-      };
+        return state;
+      }
+
+      reducer[ID] = id;
+      reducer[GETTER] = get;
+
+      return reducer;
     },
   };
 

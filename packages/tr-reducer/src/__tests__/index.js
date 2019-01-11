@@ -1,11 +1,5 @@
 import { createReducer, getId, getGetter } from '..';
 
-const createContext = () => ({
-  state: {},
-  cache: {},
-  changedIds: [],
-});
-
 describe('Tr', () => {
   describe('API', () => {
     it('create', () => {
@@ -47,10 +41,14 @@ describe('Tr', () => {
           createReducer({})
             .compute({ childReducer, parentReducer })
             .done()
-            .build()(createContext(), { type: 'action', payload: 1 }),
+            .build()(undefined, { type: 'action', payload: 1 }),
         ).toEqual({
-          childReducer: 2,
-          parentReducer: { state: {}, payload: 1, computedPayload: 2 },
+          flat: expect.any(Object),
+          root: {
+            childReducer: 2,
+            parentReducer: { state: {}, payload: 1, computedPayload: 2 },
+          },
+          changes: expect.any(Array),
         });
       }
 
@@ -83,15 +81,19 @@ describe('Tr', () => {
         createReducer([0])
           .lens('string', (s, v) => v)
           .done()
-          .build()(createContext(), { type: 'string', key: 0, payload: 1 }),
+          .build()(undefined, { type: 'string', key: 0, payload: 1 }),
       ).not.toThrow();
 
       expect(
         createReducer([0])
           .lens('string', (s, v) => v)
           .done()
-          .build()(createContext(), { type: 'string', key: 0, payload: 1 }),
-      ).toEqual([1]);
+          .build()(undefined, { type: 'string', key: 0, payload: 1 }),
+      ).toEqual({
+        flat: expect.any(Object),
+        root: [1],
+        changes: expect.any(Array),
+      });
 
       expect(() => {
         createReducer().lens();
@@ -109,7 +111,7 @@ describe('Tr', () => {
         createReducer([0])
           .lens('string', (s, v) => v)
           .done()
-          .build()(createContext(), { type: 'string', payload: 1 });
+          .build()(undefined, { type: 'string', payload: 1 });
       }).toThrow();
     });
 
@@ -130,6 +132,18 @@ describe('Tr', () => {
           () => {},
         );
       }).not.toThrow();
+
+      expect(
+        createReducer({})
+          .on('INIT', state => state)
+          .compute({
+            child: createReducer(true)
+              .on('INIT', (state = true) => state)
+              .done(),
+          })
+          .done()
+          .build()(undefined, { type: 'INIT' }).root,
+      ).toEqual({ child: true });
 
       expect(() => {
         createReducer().compute(createReducer(), () => {});
@@ -172,6 +186,7 @@ describe('Tr', () => {
       }).toThrow();
     });
   });
+
   it('actions', () => {
     const INITIAL = 'INITIAL';
     const COUNT = 'COUNT';
@@ -220,27 +235,24 @@ describe('Tr', () => {
     function test(counters) {
       const countersReducer = counters.build();
 
-      const context = createContext();
+      let state;
 
-      expect(countersReducer(context, { type: INITIAL })).toEqual({
+      state = countersReducer(state, { type: INITIAL });
+      expect(state.root).toEqual({
         count1: 0,
         count2: 0,
         count3: undefined,
       });
-      context.state = Object.assign({}, context.cache);
-      context.cache = {};
-      context.changedIds = [];
 
-      expect(countersReducer(context, { type: COUNT, payload: 1 })).toEqual({
+      state = countersReducer(state, { type: COUNT, payload: 1 });
+      expect(state.root).toEqual({
         count1: 0,
         count2: 1,
         count3: 2,
       });
-      context.state = Object.assign({}, context.state, context.cache);
-      context.cache = {};
-      context.changedIds = [];
 
-      expect(countersReducer(context, { type: COUNT, payload: 1 })).toEqual({
+      state = countersReducer(state, { type: COUNT, payload: 1 });
+      expect(state.root).toEqual({
         count1: 0,
         count2: 2,
         count3: 3,
@@ -261,18 +273,15 @@ describe('Tr', () => {
 
       const reducer = list.build();
 
-      const context = createContext();
+      let state;
 
-      reducer(context, { type: fillList, payload: [1, 2, 3] });
-      expect(context.cache[listReducerId]).toEqual([1, 2, 3]);
-      Object.assign(context.state, context.cache);
-      context.cache = {};
-      context.changedIds = [];
+      state = reducer(state, { type: fillList, payload: [1, 2, 3] });
+      expect(state.flat[listReducerId]).toEqual([1, 2, 3]);
 
-      reducer(context, { type: changeItem, key: 0, payload: 1.1 });
-      expect(context.cache[listReducerId]).toEqual([1.1, 2, 3]);
-      expect(context.changedIds).toEqual([{ id: listReducerId, key: 0 }]);
-      expect(getGetter(list)(context.cache[listReducerId], 0)).toEqual(1.1);
+      state = reducer(state, { type: changeItem, key: 0, payload: 1.1 });
+      expect(state.flat[listReducerId]).toEqual([1.1, 2, 3]);
+      expect(state.changes).toEqual([{ id: listReducerId, key: 0 }]);
+      expect(getGetter(list)(state.flat[listReducerId], 0)).toEqual(1.1);
     });
 
     it('custom lens', () => {
@@ -290,22 +299,19 @@ describe('Tr', () => {
 
       const reducer = list.build();
 
-      const context = createContext();
+      let state;
 
       const newList = new Map([[1, 1], [2, 2], [3, 3]]);
-      reducer(context, { type: fillList, payload: newList });
-      expect(context.cache[listReducerId]).toEqual(newList);
-      expect(context.changedIds).toEqual([listReducerId]);
-      Object.assign(context.state, context.cache);
-      context.cache = {};
-      context.changedIds = [];
+      state = reducer(state, { type: fillList, payload: newList });
+      expect(state.flat[listReducerId]).toEqual(newList);
+      expect(state.changes).toEqual([listReducerId]);
 
-      reducer(context, { type: changeItem, key: 1, payload: 1.1 });
-      expect(context.cache[listReducerId]).toEqual(
+      state = reducer(state, { type: changeItem, key: 1, payload: 1.1 });
+      expect(state.flat[listReducerId]).toEqual(
         new Map([[1, 1.1], [2, 2], [3, 3]]),
       );
-      expect(context.changedIds).toEqual([{ id: listReducerId, key: 1 }]);
-      expect(getGetter(list)(context.cache[listReducerId], 1)).toEqual(1.1);
+      expect(state.changes).toEqual([{ id: listReducerId, key: 1 }]);
+      expect(getGetter(list)(state.flat[listReducerId], 1)).toEqual(1.1);
     });
 
     it('glitch free', () => {
@@ -342,8 +348,7 @@ describe('Tr', () => {
 
       const reducer = shape2.build();
 
-      const context = createContext();
-      expect(reducer(context, { type: testAction })).toEqual({
+      expect(reducer(undefined, { type: testAction }).root).toEqual({
         one: 1,
         two: 2,
       });

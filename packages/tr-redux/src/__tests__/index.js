@@ -1,4 +1,5 @@
-import { createReducer, createStore } from '..';
+import { createReducer, composeEnhancers } from '..';
+import { createStore } from 'redux';
 
 describe('tr-redux', () => {
   describe('createStore', () => {
@@ -8,7 +9,7 @@ describe('tr-redux', () => {
         .compute({ child })
         .done();
 
-      const store = createStore(root);
+      const store = createStore(root.build(), composeEnhancers());
 
       expect(store.getState(child)).toBe(true);
       expect(store.getState(root)).toEqual({ child: true });
@@ -18,7 +19,7 @@ describe('tr-redux', () => {
     it('getState lens', () => {
       const root = createReducer([1, 2, 3]).done();
 
-      const store = createStore(root);
+      const store = createStore(root.build(), composeEnhancers());
 
       expect(store.getState(root)).toEqual([1, 2, 3]);
       expect(store.getState(root, 0)).toEqual(1);
@@ -31,7 +32,7 @@ describe('tr-redux', () => {
         .on(change, (state, prop) => ({ prop }))
         .done();
 
-      const store = createStore(reducer);
+      const store = createStore(reducer.build(), composeEnhancers());
 
       expect(store.getState()).toEqual({ prop: false });
 
@@ -54,7 +55,7 @@ describe('tr-redux', () => {
         .compute({ prop })
         .done();
 
-      const store = createStore(reducer);
+      const store = createStore(reducer.build(), composeEnhancers());
 
       const rootSubscriberUnsubscribe = store.subscribe(rootSubscriber);
       const propSubscriberUnsubscribe = store.subscribe(propSubscriber, prop);
@@ -91,7 +92,7 @@ describe('tr-redux', () => {
         .lens(changeItem, (item, payload) => ({ ...item, ...payload }))
         .done();
 
-      const store = createStore(list);
+      const store = createStore(list.build(), composeEnhancers());
 
       const listSubscriberUnsubscribe = store.subscribe(listSubscriber);
       const firstItemSubscriberUnsubscribe = store.subscribe(
