@@ -1,6 +1,6 @@
 {
   "name": "@artalar/tr-redux",
-  "version": "0.0.8",
+  "version": "0.1.0",
   "description": "tiny reactive",
   "main": "lib/index.js",
   "module": "es/index.js",
@@ -22,12 +22,13 @@
     "prettify": "prettier --write \"src/**/*.js\"",
     "prettify:watch": "onchange '**/*.js' -- prettier --write {{changed}}"
   },
+  "dependencies": {
+    "@artalar/tr-reducer": "^0.1.0"
+  },
   "peerDependencies": {
-    "redux": "^4.0.1",
-    "@artalar/tr-reducer": "^0.0.8"
+    "redux": "^4.0.1"
   },
   "devDependencies": {
-    "@artalar/tr-reducer": "0.0.8",
     "@babel/cli": "^7.1.5",
     "@babel/core": "^7.1.6",
     "@babel/plugin-proposal-object-rest-spread": "^7.0.0",
