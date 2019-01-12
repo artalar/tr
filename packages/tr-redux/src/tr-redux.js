@@ -1,5 +1,5 @@
 // eslint-disable-next-line camelcase
-import { applyMiddleware, __DO_NOT_USE__ActionTypes } from 'redux';
+import { applyMiddleware } from 'redux';
 import {
   createCollection as _createCollection,
   __getId,
@@ -7,11 +7,13 @@ import {
 
 export { tellChanges } from '@artalar/tr-reducer';
 
+const INIT_ACTION = `@@tr/INIT_ACTION/${Math.random().toString(7)}`;
+const FORCE_UPDATE = `@@tr/FORCE_UPDATE/${Math.random().toString(7)}`;
+
 export function createCollection(initialState, description) {
-  return _createCollection(initialState, description).on(
-    __DO_NOT_USE__ActionTypes.INIT,
-    (state = initialState) => state,
-  );
+  return _createCollection(initialState, description)
+    .on(INIT_ACTION, (state = initialState) => state)
+    .on(FORCE_UPDATE, state => state);
 }
 
 export function composeEnhancers(...middlewares) {
@@ -24,10 +26,24 @@ export function composeEnhancers(...middlewares) {
         )
       : createStore(rootReducer.build(), applyMiddleware(...middlewares));
 
+    store.dispatch({ type: INIT_ACTION });
+
     const subscribers = Object.create(null);
     const subscribersByIdByKeys = Object.create(null);
 
+    let isDispatching = false;
+
+    function dispatch(action) {
+      try {
+        isDispatching = true;
+        return store.dispatch(action);
+      } finally {
+        isDispatching = false;
+      }
+    }
+
     store.subscribe(() => {
+      if (!isDispatching) return dispatch({ type: FORCE_UPDATE });
       const { changes, flat } = store.getState();
 
       const changedIds = Object.keys(changes);
@@ -65,7 +81,7 @@ export function composeEnhancers(...middlewares) {
       const targetId = __getId(target);
 
       if (targetId === undefined) {
-        throw new TypeError('Target is not "tr-reducer"');
+        throw new TypeError('Target is not "tr" collection');
       }
 
       if (key !== undefined) {
@@ -107,6 +123,7 @@ export function composeEnhancers(...middlewares) {
       ...store,
       subscribe,
       getState,
+      dispatch,
     };
   };
 }
