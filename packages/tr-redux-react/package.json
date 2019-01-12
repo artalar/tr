@@ -1,6 +1,6 @@
 {
   "name": "@artalar/tr-redux-react",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "tiny reactive",
   "main": "lib/index.js",
   "module": "es/index.js",
@@ -23,8 +23,7 @@
     "prettify:watch": "onchange '**/*.js' -- prettier --write {{changed}}"
   },
   "peerDependencies": {
-    "@artalar/tr-reducer": "^0.0.7",
-    "@artalar/tr-redux": "^0.0.7",
+    "@artalar/tr-reducer": "^0.1.2",
     "react": "^16.7.0"
   },
   "devDependencies": {

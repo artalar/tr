@@ -8,4 +8,4 @@ tr-redux adapter for React.js
 
 ## Example
 
-[![tr-redux example](https://codesandbox.io/static/img/play-codesandbox.svg)](https://codesandbox.io/s/rw8mj4py8q) Todo-list
+[![tr-redux example](https://codesandbox.io/static/img/play-codesandbox.svg)](https://codesandbox.io/s/5k8zjyo3l) Todo-list

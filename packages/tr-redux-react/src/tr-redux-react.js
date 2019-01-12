@@ -14,47 +14,50 @@ export class Provider extends React.Component {
   }
 }
 
-function performOptions(options) {
-  switch (typeof options) {
-    case 'function':
-      return {
-        mapper: options,
-        predicate: () => true,
-      };
-    case 'object': {
-      return options;
-    }
-    case 'undefined':
-      return {
-        mapper: () => ({}),
-        predicate: () => true,
-      };
-    case 'string': {
-      const key = options;
-      return {
-        mapper: v => ({ [key]: v }),
-        predicate: () => true,
-      };
-    }
-    default:
-      throw new TypeError('Unexpected connnect options');
+export const connect = (target, onNewProps, onInitial) => {
+  if (!target) {
+    target = undefined;
   }
-}
+  if (!onNewProps) {
+    onNewProps = () => ({});
+  } else if (typeof onNewProps !== 'function') {
+    const key = onNewProps;
+    onNewProps = state => ({ [key]: state });
+  }
 
-export const connect = (target, options, key) => {
-  const { mapper } = performOptions(options);
+  if (onInitial === undefined) {
+    onInitial = () => ({});
+  } else if (typeof onInitial !== 'function') {
+    const key = onInitial;
+    onInitial = () => ({ key });
+  }
 
   return Component =>
     class Connected extends React.Component {
       static contextType = Context;
 
-      state = {};
+      constructor(...a) {
+        super(...a);
+
+        this._initialProps = onInitial({
+          ...this.props,
+          dispatch: this.context.dispatch,
+        });
+        this._key = this._initialProps.key;
+
+        const { key: _deleted, ...initialPropsRest } = this._initialProps;
+        this._initialProps = initialPropsRest;
+      }
 
       componentDidMount() {
         this.unsubscribe =
-          key === undefined
+          this._key === undefined
             ? this.context.subscribe(() => this.forceUpdate(), target)
-            : this.context.subscribe(() => this.forceUpdate(), target, key);
+            : this.context.subscribe(
+                () => this.forceUpdate(),
+                target,
+                this._key,
+              );
       }
 
       componentWillUnmount() {
@@ -66,8 +69,8 @@ export const connect = (target, options, key) => {
           Component,
           {
             ...this.props,
-            ...mapper(this.context.getState(target, key), this.props),
-            dispatch: this.context.dispatch,
+            ...this._initialProps,
+            ...onNewProps(this.context.getState(target, this._key), this.props),
           },
           this.props.children,
         );
