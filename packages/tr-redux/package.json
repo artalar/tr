@@ -1,6 +1,6 @@
 {
   "name": "@artalar/tr-redux",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "tiny reactive",
   "main": "lib/index.js",
   "module": "es/index.js",
@@ -24,9 +24,6 @@
   },
   "dependencies": {
     "@artalar/tr-reducer": "^0.1.0"
-  },
-  "peerDependencies": {
-    "redux": "^4.0.1"
   },
   "devDependencies": {
     "@babel/cli": "^7.1.5",

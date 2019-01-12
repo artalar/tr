@@ -1,5 +1,3 @@
-// eslint-disable-next-line camelcase
-import { applyMiddleware } from 'redux';
 import {
   createCollection as _createCollection,
   __getId,
@@ -16,15 +14,11 @@ export function createCollection(initialState, description) {
     .on(FORCE_UPDATE, state => state);
 }
 
-export function composeEnhancers(...middlewares) {
+export function composeEnhancers(middlewares) {
   return createStore => (rootReducer, preloadedState) => {
     const store = preloadedState
-      ? createStore(
-          rootReducer.build(),
-          preloadedState,
-          applyMiddleware(...middlewares),
-        )
-      : createStore(rootReducer.build(), applyMiddleware(...middlewares));
+      ? createStore(rootReducer.build(), preloadedState, middlewares)
+      : createStore(rootReducer.build(), middlewares);
 
     store.dispatch({ type: INIT_ACTION });
 
