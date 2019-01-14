@@ -1,4 +1,4 @@
-import { createCollection, tellChanges, __getId } from '..';
+import { createCollection, __getId } from '..';
 
 describe('Tr', () => {
   describe('API', () => {
@@ -14,28 +14,30 @@ describe('Tr', () => {
 
     it('"on"', () => {
       expect(() => {
-        createCollection().on('', () => {});
+        createCollection().on('', () => []);
       }).not.toThrow();
       expect(() => {
         createCollection().on(
           '',
           createCollection()
-            .on('', () => {})
+            .on('', () => [])
             .done(),
-          () => {},
+          () => [],
         );
       }).not.toThrow();
 
       {
         const childCollection = createCollection(0)
-          .on('action', (state, payload) => payload + 1)
+          .on('action', (state, payload) => [payload + 1])
           .done();
         const parentCollection = createCollection({})
-          .on('action', childCollection, (state, payload, computedPayload) => ({
-            state,
-            payload,
-            computedPayload,
-          }))
+          .on('action', childCollection, (state, payload, computedPayload) => [
+            {
+              state,
+              payload,
+              computedPayload,
+            },
+          ])
           .done();
         const rootCollection = createCollection({})
           .compute({ childCollection, parentCollection })
@@ -67,24 +69,19 @@ describe('Tr', () => {
         });
       }
 
-      expect(() => {
-        createCollection().on();
-      }).toThrow();
+      expect(() => createCollection().on()).toThrow();
 
-      expect(() => {
-        createCollection().on('');
-      }).toThrow();
+      expect(() => createCollection().on('')).toThrow();
 
-      expect(() => {
-        createCollection().on(undefined, () => {});
-      }).toThrow();
-      expect(() => {
+      expect(() => createCollection().on(undefined, () => [])).toThrow();
+
+      expect(() =>
         createCollection().on(
           '',
-          createCollection().on('', () => {}),
-          () => {},
-        );
-      }).toThrow();
+          createCollection().on('', () => []),
+          () => [],
+        ),
+      ).toThrow();
     });
 
     it('"compute", "done"', () => {
@@ -93,7 +90,7 @@ describe('Tr', () => {
       }).not.toThrow();
 
       expect(() => {
-        createCollection().compute(createCollection().done(), () => {});
+        createCollection().compute(createCollection().done(), () => []);
       }).not.toThrow();
 
       expect(() => {
@@ -101,16 +98,16 @@ describe('Tr', () => {
           createCollection().done(),
           createCollection().done(),
           createCollection().done(),
-          () => {},
+          () => [],
         );
       }).not.toThrow();
 
       expect(
         createCollection({})
-          .on('INIT', state => state)
+          .on('INIT', state => [state])
           .compute({
             child: createCollection(true)
-              .on('INIT', (state = true) => state)
+              .on('INIT', (state = true) => [state])
               .done(),
           })
           .done()
@@ -118,7 +115,7 @@ describe('Tr', () => {
       ).toEqual({ child: true });
 
       expect(() => {
-        createCollection().compute(createCollection(), () => {});
+        createCollection().compute(createCollection(), () => []);
       }).toThrow();
 
       expect(() => {
@@ -126,12 +123,12 @@ describe('Tr', () => {
           createCollection()
             .done()
             .build(),
-          () => {},
+          () => [],
         );
       }).toThrow();
 
       expect(() => {
-        createCollection().compute(() => {});
+        createCollection().compute(() => []);
       }).toThrow();
 
       expect(() => {
@@ -142,14 +139,14 @@ describe('Tr', () => {
     it('"build"', () => {
       expect(() => {
         createCollection()
-          .on('', () => {})
+          .on('', () => [])
           .done()
           .build();
       }).not.toThrow();
 
       expect(() => {
         createCollection()
-          .on('', () => {})
+          .on('', () => [])
           .build();
       }).toThrow();
 
@@ -164,16 +161,16 @@ describe('Tr', () => {
     const COUNT = 'COUNT';
 
     const counter1 = createCollection()
-      .on(INITIAL, () => 0)
+      .on(INITIAL, () => [0])
       .done();
 
     const counter2 = createCollection()
-      .on(INITIAL, () => 0)
-      .on(COUNT, (state, v) => state + v)
+      .on(INITIAL, () => [0])
+      .on(COUNT, (state, v) => [state + v])
       .done();
 
     const counter3 = createCollection(1)
-      .on(COUNT, (state, v) => state + v)
+      .on(COUNT, (state, v) => [state + v])
       .done();
 
     // eslint-disable-next-line
@@ -194,12 +191,14 @@ describe('Tr', () => {
           counter1,
           counter2,
           counter3,
-          (state, count1, count2, count3) => ({
-            ...state,
-            count1,
-            count2,
-            count3,
-          }),
+          (state, count1, count2, count3) => [
+            {
+              ...state,
+              count1,
+              count2,
+              count3,
+            },
+          ],
         )
         .done(),
     );
@@ -238,11 +237,12 @@ describe('Tr', () => {
     const changeItemSkip = 'CHANGE_ITEM_SKIP';
 
     const list = createCollection([])
-      .on(fillList, (state, payload) => payload)
-      .on(changeItem, (state, { value, index }) =>
-        tellChanges(state.map((v, i) => (i === index ? value : v)), [index]),
-      )
-      .on(changeItemSkip, () => tellChanges())
+      .on(fillList, (state, payload) => [payload])
+      .on(changeItem, (state, { value, index }) => [
+        state.map((v, i) => (i === index ? value : v)),
+        [index],
+      ])
+      .on(changeItemSkip, () => [])
       .done();
     const listCollectionId = __getId(list);
 
@@ -265,17 +265,17 @@ describe('Tr', () => {
       payload: { value: 1.2, index: 0 },
     });
     expect(state.root).toEqual([1.1, 2, 3]);
-    expect(state.changes[listCollectionId]).toEqual();
+    expect(listCollectionId in state.changes).toBe(false);
   });
 
   it('glitch free', () => {
     const testAction = 'testAction';
-    const oneMap = jest.fn(() => 1);
-    const twoMap = jest.fn(() => 2);
-    const shape1Map = jest.fn((state, one, two) => ({ one, two }));
-    const shape2FirstComputeArgMap = jest.fn((state, v) => v.one);
-    const shape2SecondComputeArgMap = jest.fn((state, v) => v.two);
-    const shape2Map = jest.fn((state, one, two) => ({ one, two }));
+    const oneMap = jest.fn(() => [1]);
+    const twoMap = jest.fn(() => [2]);
+    const shape1Map = jest.fn((state, one, two) => [{ one, two }]);
+    const shape2FirstComputeArgMap = jest.fn((state, v) => [v.one]);
+    const shape2SecondComputeArgMap = jest.fn((state, v) => [v.two]);
+    const shape2Map = jest.fn((state, one, two) => [{ one, two }]);
 
     const one = createCollection()
       .on(testAction, oneMap)

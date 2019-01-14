@@ -46,20 +46,6 @@ export function __getId(reducer) {
 }
 
 /**
- * Clarify what exactly changed in state (useful for array and collections)
- * Skip arguments if you do not change anything
- * @param {*} newValue of state
- * @param {Array} changes - array of changed keys
- */
-export function tellChanges(newValue, changes = []) {
-  return {
-    newValue,
-    [IS_NO_CHANGES]: arguments.length === 0,
-    [CHANGES_LIST]: changes,
-  };
-}
-
-/**
  * Create new collection for handling action types and other collections
  * @param {*} defaultValue
  * @param {string} description
@@ -111,17 +97,33 @@ export function createCollection(defaultValue, description = '') {
           ),
         );
 
-        if (result && result[CHANGES_LIST]) {
-          if (result[IS_NO_CHANGES]) return;
-
-          flatNew[id] = result.newValue;
-          (changes[id] || (changes[id] = [])).push(...result[CHANGES_LIST]);
-        } else {
-          const newValue = result;
-          flatNew[id] = newValue;
-          if (!(id in changes)) changes[id] = [];
+        if (!Array.isArray(result)) {
+          console.log(result)
+          throw new OwnError(
+            '"mapper" must return a array.\n' +
+              '[first item - is new state, second item - is list of changes.\n' +
+              'empty array - is nothing change]',
+          );
+        }
+        switch (result.length) {
+          case 0:
+            return;
+          case 1: {
+            const newValue = result[0];
+            flatNew[id] = newValue;
+            if (!(id in changes)) changes[id] = [];
+            break;
+          }
+          case 2: {
+            flatNew[id] = result[0];
+            (changes[id] || (changes[id] = [])).push(...result[1]);
+            break;
+          }
+          default:
+            throw new OwnError('Returns to many items, expected 2 or less');
         }
       };
+
       if (!(actionType in handlersByDeps)) {
         handlersByDeps[actionType] = new Set();
       }
@@ -154,7 +156,7 @@ export function createCollection(defaultValue, description = '') {
 
           // TODO: add option for modification mapper
           mapper = (state, ...values) =>
-            values.reduce((acc, v, i) => ((acc[keys[i]] = v), acc), {});
+            [values.reduce((acc, v, i) => ((acc[keys[i]] = v), acc), {})];
         } else {
           throw new OwnError('Dependencies not passed');
         }
@@ -207,16 +209,29 @@ export function createCollection(defaultValue, description = '') {
               ),
             );
 
-            if (result && result[CHANGES_LIST]) {
-              if (result[IS_NO_CHANGES]) return;
-
-              flatNew[id] = result.newValue;
-              (changes[id] || (changes[id] = [])).push(...result[CHANGES_LIST]);
-            } else {
-              const newValue = result;
-              flatNew[id] = newValue;
-              // existed array show that state was changed
-              if (!(id in changes)) changes[id] = [];
+            if (!Array.isArray(result)) {
+              throw new OwnError(
+                '"mapper" must return a array.\n' +
+                  '[first item - is new state, second item - is list of changes.\n' +
+                  'empty array - is nothing change]',
+              );
+            }
+            switch (result.length) {
+              case 0:
+                return;
+              case 1: {
+                const newValue = result[0];
+                flatNew[id] = newValue;
+                if (!(id in changes)) changes[id] = [];
+                break;
+              }
+              case 2: {
+                flatNew[id] = result[0];
+                (changes[id] || (changes[id] = [])).push(...result[1]);
+                break;
+              }
+              default:
+                throw new OwnError('Returns to many items, expected 2 or less');
             }
           },
         );
