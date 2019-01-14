@@ -1,17 +1,12 @@
-import {
-  createCollection as _createCollection,
-  __getId,
-} from '@artalar/tr-reducer';
-
-export { tellChanges } from '@artalar/tr-reducer';
+import { createCollection, __getId } from '@artalar/tr-reducer';
 
 const INIT_ACTION = `@@tr/INIT_ACTION/${Math.random().toString(7)}`;
 const FORCE_UPDATE = `@@tr/FORCE_UPDATE/${Math.random().toString(7)}`;
 
-export function createCollection(initialState, description) {
-  return _createCollection(initialState, description)
-    .on(INIT_ACTION, (state = initialState) => state)
-    .on(FORCE_UPDATE, state => state);
+export function handler(initialState, description) {
+  return createCollection(initialState, description)
+    .on(INIT_ACTION, (state = initialState) => [state])
+    .on(FORCE_UPDATE, state => [state]);
 }
 
 export function composeEnhancers(middlewares) {

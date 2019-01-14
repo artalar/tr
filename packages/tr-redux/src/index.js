@@ -1,1 +1,1 @@
-export { createCollection, tellChanges, composeEnhancers } from './tr-redux';
+export { handler, composeEnhancers } from './tr-redux';
