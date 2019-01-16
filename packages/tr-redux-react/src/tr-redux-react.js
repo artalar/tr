@@ -1,5 +1,13 @@
 import React from 'react';
 
+function getDisplayName(WrappedComponent) {
+  return WrappedComponent.displayName || WrappedComponent.name || 'Component';
+}
+
+function execute(fn) {
+  fn();
+}
+
 const Context = React.createContext();
 
 export class Provider extends React.Component {
@@ -14,66 +22,68 @@ export class Provider extends React.Component {
   }
 }
 
-export const connect = (target, onNewProps, onInitial) => {
-  if (!target) {
-    target = undefined;
-  }
-  if (!onNewProps) {
-    onNewProps = () => ({});
-  } else if (typeof onNewProps !== 'function') {
-    const key = onNewProps;
-    onNewProps = state => ({ [key]: state });
+export const connect = (target, fabric) => {
+  if (typeof fabric !== 'function') {
+    throw new TypeError('The fabric (second argument) is not a function');
   }
 
-  if (onInitial === undefined) {
-    onInitial = () => ({});
-  } else if (typeof onInitial !== 'function') {
-    const key = onInitial;
-    onInitial = () => ({ key });
-  }
+  return Component => {
+    const name = `Connect(${getDisplayName(Component)})`;
 
-  return Component =>
-    class Connected extends React.Component {
+    return class Connected extends React.Component {
       static contextType = Context;
+
+      static displayName = name;
 
       constructor(...a) {
         super(...a);
 
-        this._initialProps = onInitial({
-          ...this.props,
-          dispatch: this.context.dispatch,
-        });
-        this._key = this._initialProps.key;
+        const mapper = fabric(
+          target ? this.context.getState(target) : this.context.getState(),
+          this.props,
+          this.context.dispatch,
+          keys => (this._keys = keys),
+        );
 
-        const { key: _deleted, ...initialPropsRest } = this._initialProps;
-        this._initialProps = initialPropsRest;
+        if (typeof mapper !== 'function') {
+          throw new TypeError(
+            `The fabric of "${name}" should return a mapper function`,
+          );
+        }
+
+        this._mapNewProps = mapper;
+        this._keys = this._keys || [];
       }
 
       componentDidMount() {
-        this.unsubscribe =
-          this._key === undefined
-            ? this.context.subscribe(() => this.forceUpdate(), target)
-            : this.context.subscribe(
-                () => this.forceUpdate(),
-                target,
-                this._key,
+        this.unsubscribers =
+          this._keys.length === 0
+            ? target
+              ? [this.context.subscribe(() => this.forceUpdate(), target)]
+              : []
+            : this._keys.map(key =>
+                this.context.subscribe(() => this.forceUpdate(), target, key),
               );
       }
 
       componentWillUnmount() {
-        if (this.unsubscribe) this.unsubscribe();
+        if (this.unsubscribers) this.unsubscribers.map(execute);
       }
 
       render() {
         return React.createElement(
           Component,
-          {
-            ...this.props,
-            ...this._initialProps,
-            ...onNewProps(this.context.getState(target, this._key), this.props),
-          },
+          Object.assign(
+            {},
+            this.props,
+            this._mapNewProps(
+              target ? this.context.getState(target) : this.context.getState(),
+              this.props,
+            ),
+          ),
           this.props.children,
         );
       }
     };
+  };
 };
