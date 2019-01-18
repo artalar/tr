@@ -1,1 +1,1 @@
-export { handler, composeEnhancers } from './tr-redux';
+export { handler, composeEnhancers, __getId } from './tr-redux';
