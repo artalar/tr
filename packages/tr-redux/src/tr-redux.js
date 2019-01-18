@@ -1,12 +1,28 @@
 import { createCollection, __getId } from '@artalar/tr-reducer';
 
-const INIT_ACTION = `@@tr/INIT_ACTION/${Math.random().toString(7)}`;
-const FORCE_UPDATE = `@@tr/FORCE_UPDATE/${Math.random().toString(7)}`;
+let actionsCount = 0;
+function createActionType(description) {
+  return `@@tr__${description}__[${++actionsCount}_${Math.random().toString(
+    7,
+  )}]`;
+}
+
+const INIT_ACTION = createActionType('INIT_ACTION');
+const FORCE_UPDATE = createActionType('FORCE_UPDATE');
+const IS_ACTION = createActionType('IS_ACTION');
+
+export { __getId }
 
 export function handler(initialState, description) {
   return createCollection(initialState, description)
     .on(INIT_ACTION, (state = initialState) => [state])
     .on(FORCE_UPDATE, state => [state]);
+}
+export function createAction(description = '') {
+  const type = createActionType(description);
+  const actionCreator = payload => ({ type, payload });
+  actionCreator[IS_ACTION] = true;
+  return actionCreator;
 }
 
 export function composeEnhancers(middlewares) {
