@@ -16,6 +16,7 @@ mock redux store for reactive magic
 - Difficult static type inference
 - Selectors - is **manual** API to state. It must be **manualy** memorized - and you always need to think when you need it or not (it one of the reasons of performance problems)
 - classic API reducer is had much boilerplate and [static] type description boilerplate
+- Selectors "runtime" oriented, mean if some "feature" use any part of state (by selector) when you will remove that part, you get the error only when you will try to mount your "feature" at runtime (if you have not static typing). Right way - is connect all features staticaly by imports.
 - A part of problems solves by various fabric functions, but without standardization it is harmful
 
 ### Goals
